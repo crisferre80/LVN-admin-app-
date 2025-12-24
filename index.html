@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/assets/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=0.9" />
+    <title>La Voz del Norte - Diario Digital del Norte Grande</title>
+    
+    <!-- Meta tags básicas -->
+    <meta name="description" content="Diario digital independiente del Norte Grande. Noticias locales, nacionales e internacionales. Santiago del Estero, Tucumán, Salta." />
+    <meta name="keywords" content="noticias, diario, santiago del estero, tucuman, salta, norte grande, argentina" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="La Voz del Norte - Diario Digital del Norte Grande" />
+    <meta property="og:description" content="Diario digital independiente del Norte Grande. Noticias locales, nacionales e internacionales." />
+    <meta property="og:image" content="https://lavozdelnortediario.com/assets/logo.png" />
+    <meta property="og:url" content="https://lavozdelnortediario.com" />
+    <meta property="og:site_name" content="La Voz del Norte" />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="La Voz del Norte - Diario Digital del Norte Grande" />
+    <meta property="twitter:description" content="Diario digital independiente del Norte Grande. Noticias locales, nacionales e internacionales." />
+    <meta property="twitter:image" content="https://lavozdelnortediario.com/assets/logo.png" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- Debug script para detectar URLs problemáticas de YouTube -->
+    <script>
+      // Script para interceptar creación de iframes y detectar URLs problemáticas
+      (function() {
+          const originalCreateElement = document.createElement;
+          
+          document.createElement = function(tagName) {
+              const element = originalCreateElement.call(this, tagName);
+              
+              if (tagName.toLowerCase() === 'iframe') {
+                  const originalSetAttribute = element.setAttribute;
+                  
+                  element.setAttribute = function(name, value) {
+                      if (name === 'src' && typeof value === 'string') {
+                          console.log('🔍 Iframe creado con src:', value);
+                          
+                          // Detectar URLs problemáticas de YouTube
+                          if (value.includes('youtube.com') && !value.includes('/embed/')) {
+                              console.error('🚨 URL PROBLEMÁTICA DE YOUTUBE DETECTADA:', value);
+                              console.trace('Stack trace del iframe problemático:');
+                              
+                              // Interceptar específicamente https://www.youtube.com/ sin más nada
+                              if (value === 'https://www.youtube.com/' || value === 'https://youtube.com/' || value === 'https://www.youtube.com') {
+                                  console.error('🔥 DETECTADO: URL de YouTube raíz sin video ID');
+                                  console.log('🚫 Bloqueando iframe con URL raíz de YouTube');
+                                  return originalSetAttribute.call(this, name, 'about:blank');
+                              }
+                              
+                              // Intentar corregir automáticamente
+                              if (value.includes('youtube.com/watch?v=')) {
+                                  const videoId = value.match(/v=([^&]+)/)?.[1];
+                                  if (videoId) {
+                                      const correctedUrl = `https://www.youtube.com/embed/${videoId}`;
+                                      console.log('🔧 URL corregida automáticamente:', correctedUrl);
+                                      return originalSetAttribute.call(this, name, correctedUrl);
+                                  }
+                              }
+                          }
+                      }
+                      
+                      return originalSetAttribute.call(this, name, value);
+                  };
+              }
+              
+              return element;
+          };
+          
+          console.log('✅ Debug de YouTube iniciado - monitoreando creación de iframes');
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

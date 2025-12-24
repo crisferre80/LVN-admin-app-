@@ -1,0 +1,2 @@
+# Headers CORS para las funciones se manejan dentro de cada función
+# para permitir múltiples orígenes de forma dinámica

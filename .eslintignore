@@ -1,0 +1,2 @@
+# Deno Edge Functions - validated by Deno linter
+supabase/functions/**/*.ts

@@ -1,0 +1,45 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+  [build.environment]
+    VITE_USE_HASH_ROUTER = "true"
+    BRAND_NAME = "Diario del Norte Grande"
+    # Si subes assets a un CDN con imágenes OG por categoría, descomenta y ajusta:
+    # BRAND_PLACEHOLDER_BASE_URL = "https://cdn.tu-sitio.com/og"
+    VITE_NEWSAPI_KEY = "api_live_N6oeDfh8ludPsCJJdCYTTt4W7tfy7Z5swxAxtPaokFnrbXHTO"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/s/:type/:id"
+  to = "/.netlify/functions/share?type=:type&id=:id"
+  status = 200
+
+# Redirects para compartir artículos en redes sociales (DEBEN ir antes del SPA fallback)
+[[redirects]]
+  from = "/article/noticia/:id"
+  to = "/.netlify/functions/share?id=:id"
+  status = 200
+
+[[redirects]]
+  from = "/article/rss/:id"
+  to = "/.netlify/functions/share?id=:id"
+  status = 200
+
+# SPA fallback: send all non-file routes to index.html (DEBE ser el último)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+  force = true
+
+# Headers para assets estáticos
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+    Content-Security-Policy = "frame-src 'self' https://www.youtube.com https://youtube.com https://youtu.be https://vdo.ninja https://obs.ninja https://js.puter.com https://*.js.puter.com; frame-ancestors 'self'; upgrade-insecure-requests"
