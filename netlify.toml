@@ -5,6 +5,8 @@
   [build.environment]
     VITE_USE_HASH_ROUTER = "true"
     BRAND_NAME = "Diario del Norte Grande"
+    VITE_SUPABASE_URL = "https://eafpqpfzadpyhmidjwff.supabase.co"
+    VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVhZnBxcGZ6YWRweWhtaWRqd2ZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzMTM1ODQsImV4cCI6MjA3NTg4OTU4NH0.aT2K4eyMNzoZ3BbLUwPIa6XcJogOU2SSU5ySYe2xdRI"
     # Si subes assets a un CDN con imágenes OG por categoría, descomenta y ajusta:
     # BRAND_PLACEHOLDER_BASE_URL = "https://cdn.tu-sitio.com/og"
     VITE_NEWSAPI_KEY = "api_live_N6oeDfh8ludPsCJJdCYTTt4W7tfy7Z5swxAxtPaokFnrbXHTO"
