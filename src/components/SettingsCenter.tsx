@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Calendar, Key, MessageSquare, Save, Activity } from 'lucide-react';
+import { Settings, Calendar, MessageSquare, Save, Activity } from 'lucide-react';
 import { AdSettingsManager } from './AdSettingsManager';
 import FeaturedScheduler from './FeaturedScheduler';
-import { APIKeyDiagnostic } from './APIKeyDiagnostic';
 import ModalToastsManager from './ModalToastsManager';
 import { AutoSaveSettings } from './AutoSaveSettings';
 
-type Tab = 'ads' | 'featured' | 'api' | 'modals' | 'autosave';
+type Tab = 'ads' | 'featured' | 'modals' | 'autosave';
 
 export const SettingsCenter: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('ads');
@@ -32,7 +31,6 @@ export const SettingsCenter: React.FC = () => {
   const tabs = [
     { id: 'ads' as Tab, label: 'Publicidades', icon: Settings },
     { id: 'featured' as Tab, label: 'Destacados', icon: Calendar },
-    { id: 'api' as Tab, label: 'API Keys', icon: Key },
     { id: 'modals' as Tab, label: 'Modal/Toasts', icon: MessageSquare },
     { id: 'autosave' as Tab, label: 'Auto-guardado', icon: Save },
   ];
@@ -77,7 +75,6 @@ export const SettingsCenter: React.FC = () => {
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {activeTab === 'ads' && <AdSettingsManager />}
         {activeTab === 'featured' && <FeaturedScheduler />}
-        {activeTab === 'api' && <APIKeyDiagnostic />}
         {activeTab === 'modals' && <ModalToastsManager />}
         {activeTab === 'autosave' && <AutoSaveSettings />}
       </div>
