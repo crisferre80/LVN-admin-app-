@@ -7,17 +7,14 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
  * Cliente de Supabase con configuración optimizada para mantener sesión
  * 
  * Configuración clave:
- * - persistSession: true - Mantiene sesión en localStorage
+ * - persistSession: false - No mantener sesión en localStorage
  * - autoRefreshToken: true - Refresca token automáticamente
  * - detectSessionInUrl: true - Detecta sesión en URL (para OAuth)
  * - flowType: 'pkce' - Flujo seguro de autenticación
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Clave única para almacenar sesión en localStorage
-    storageKey: 'diario-santiago-del-estero-auth',
-    
-    // Persistir sesión entre recargas
+    // Persistir sesión para mantener autenticación (necesario para funcionalidad)
     persistSession: true,
     
     // Refrescar token automáticamente (recomendado)
@@ -28,9 +25,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     
     // Flujo seguro de autenticación (PKCE)
     flowType: 'pkce',
-    
-    // Usar localStorage explícitamente (necesario para SSR)
-    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     
     // Habilitar debug en desarrollo (cambiar a true si necesitas logs detallados)
     debug: false,

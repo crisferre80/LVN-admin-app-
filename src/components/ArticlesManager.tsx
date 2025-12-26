@@ -123,7 +123,7 @@ const copyToClipboard = async (article: ExtendedArticle) => {
   }
 };
 
-export function ArticlesManager({ }: { onSectionChange: (section: string) => void }) {
+export function ArticlesManager({ onSectionChange }: { onSectionChange: (section: string) => void }) {
   const navigate = useNavigate();
   const { user, session } = useAuth();
   const [articles, setArticles] = useState<ExtendedArticle[]>([]);
@@ -162,11 +162,15 @@ export function ArticlesManager({ }: { onSectionChange: (section: string) => voi
   }, [articles.length]);
 
   const handleEditWithAI = (article: ExtendedArticle) => {
-    navigate(`/admin/article/edit/${article.id}?rewrite=true`);
+    onSectionChange('editor', { editId: article.id, isRewrite: true });
   };
 
   const handleEditArticle = (article: ExtendedArticle) => {
-    navigate(`/admin/article/edit/${article.id}`);
+    onSectionChange('editor');
+    // Usar search params para pasar el ID
+    const url = new URL(window.location.href);
+    url.searchParams.set('edit', article.id);
+    window.history.replaceState({}, '', url.toString());
   };
 
   const handleToggleFeatured = async (article: ExtendedArticle) => {
@@ -201,7 +205,7 @@ export function ArticlesManager({ }: { onSectionChange: (section: string) => voi
   };
 
   const handleCreateArticle = () => {
-    navigate('/admin/article/new');
+    onSectionChange('editor', { isNew: true });
   };
 
   const handleBulkGenerator = () => {

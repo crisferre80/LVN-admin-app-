@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LVN Diario Admin App</string>
+    <string name="title_activity_main">LVN Diario Admin App</string>
+    <string name="package_name">com.crisferre80.lvnadmin</string>
+    <string name="custom_url_scheme">com.crisferre80.lvnadmin</string>
+</resources>

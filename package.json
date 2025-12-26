@@ -23,6 +23,10 @@
     "deno:check": "echo 'Deno no instalado localmente. Las funciones se validan en Supabase.'"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/ios": "^8.0.0",
     "@google/genai": "^1.29.0",
     "@google/generative-ai": "^0.24.1",
     "@heroicons/react": "^2.2.0",

@@ -12,28 +12,12 @@ export { generateArticleImage, generateImageWithProvider, type ImageProvider, ty
 
 /**
  * Función helper para rate limiting de Google AI
+ * Nota: Rate limiting local removido, depender de límites de API
  */
 export const enforceGoogleAIRateLimit = async (): Promise<void> => {
-  // Rate limiting: máximo 10 llamadas por minuto
-  const now = Date.now();
-  const callsKey = 'google_ai_calls';
-  const callsData = localStorage.getItem(callsKey);
-  let calls: number[] = callsData ? JSON.parse(callsData) : [];
-
-  // Filtrar llamadas de más de 1 minuto
-  calls = calls.filter(callTime => now - callTime < 60000);
-
-  if (calls.length >= 10) {
-    const waitTime = 60000 - (now - calls[0]);
-    console.warn(`Rate limit alcanzado. Esperando ${Math.ceil(waitTime / 1000)} segundos...`);
-    await new Promise(resolve => setTimeout(resolve, waitTime));
-    // Recargar después de esperar
-    calls = JSON.parse(localStorage.getItem(callsKey) || '[]').filter(callTime => Date.now() - callTime < 60000);
-  }
-
-  // Agregar la nueva llamada
-  calls.push(now);
-  localStorage.setItem(callsKey, JSON.stringify(calls));
+  // Rate limiting removido - depender de límites de Google AI API
+  // Pequeño delay para evitar llamadas demasiado rápidas
+  await new Promise(resolve => setTimeout(resolve, 100));
 };
 
 /**

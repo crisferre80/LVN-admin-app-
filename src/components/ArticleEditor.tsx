@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { GalleryManager, GalleryTemplate } from './GalleryManager';
+import AudioTranscriber from './AudioTranscriber';
+import { AudioPlayer } from './AudioPlayer';
+import { AudioSelector } from './AudioSelector';
 import { JOURNALISTIC_PROMPTS, JournalisticStyle } from '../types/articlePrompts';
 import { generateArticleImage } from '../lib/googleAI';
 import { useAIModelConfig } from '../hooks/useAIModelConfig';
@@ -28,6 +31,8 @@ import { rewriteWithPuter, generateContentWithPuter, generateWithPuter } from '.
 import compress from 'browser-image-compression';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 
 interface ArticleEditorState {
   title: string;
@@ -71,16 +76,47 @@ const CATEGORIES = [
   'Seguridad'
 ];
 
-export function ArticleEditor() {
+interface ArticleEditorProps {
+  onExit?: () => void;
+  initialEditId?: string;
+  initialNew?: boolean;
+  initialRewrite?: boolean;
+}
+
+export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrite }: ArticleEditorProps = {}) {
   const navigate = useNavigate();
-  const { id } = useParams<{ id?: string }>();
-  const isEditing = Boolean(id);
+  const { id: urlId } = useParams<{ id?: string }>();
   const { config: aiConfig } = useAIModelConfig();
   const { user, session } = useAuth();
 
-  // Detectar si estamos en modo rewrite
+  // Debug: verificar estado de autenticación
+  useEffect(() => {
+    console.log('[ArticleEditor] Estado de autenticación:', {
+      hasUser: !!user,
+      hasSession: !!session,
+      userId: user?.id,
+      sessionUserId: session?.user?.id
+    });
+  }, [user, session]);
+
+  // Función para salir del editor
+  const exitEditor = () => {
+    if (onExit) {
+      onExit();
+    } else {
+      navigate('/admin');
+    }
+  };
+
+  // Detectar parámetros de la URL o usar props iniciales
   const searchParams = new URLSearchParams(window.location.search);
-  const isRewriteMode = searchParams.get('rewrite') === 'true';
+  const editId = initialEditId || searchParams.get('edit');
+  const isNew = initialNew || searchParams.get('new') === 'true';
+  const isRewriteMode = initialRewrite || searchParams.get('rewrite') === 'true';
+
+  // Determinar el ID del artículo (de URL params o search params)
+  const articleId = urlId || editId;
+  const isEditing = Boolean(articleId) && !isNew;
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
@@ -116,6 +152,7 @@ export function ArticleEditor() {
   const [selectedProvider, setSelectedProvider] = useState<string>(aiConfig.fallbackOrder[0] || 'google');
   const [customTopic, setCustomTopic] = useState('');
   const [showStyleSelector, setShowStyleSelector] = useState(false);
+  const [showAudioTranscriber, setShowAudioTranscriber] = useState(false);
 
   // Image generation states
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -311,10 +348,10 @@ export function ArticleEditor() {
   }, []);
 
   useEffect(() => {
-    if (isEditing && id) {
-      loadArticle(id);
+    if (isEditing && articleId) {
+      loadArticle(articleId);
     }
-  }, [id, isEditing]);
+  }, [articleId, isEditing]);
 
   // Inicializar configuraciones de auto-guardado y conexión
   useEffect(() => {
@@ -448,7 +485,7 @@ export function ArticleEditor() {
     } catch (error) {
       console.error('Error loading article:', error);
       toast.error('Error al cargar el artículo');
-      navigate('/admin');
+      exitEditor();
     } finally {
       setLoading(false);
     }
@@ -1410,10 +1447,10 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
         gallery_template: formData.gallery_template || 'list',
         status: 'draft',
         last_modified: now.toISOString(),
-        article_id: isEditing ? id : null,
+        article_id: isEditing ? articleId : null,
       };
 
-      if (isEditing && id) {
+      if (isEditing && articleId) {
         // Actualizar borrador existente
         const { error } = await supabase
           .from('article_drafts')
@@ -1581,7 +1618,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
 
       console.log('Guardando artículo...', {
         isEditing,
-        id,
+        articleId,
         originalTable,
         publish,
         title: formData.title.substring(0, 50) + '...'
@@ -1666,7 +1703,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
 
       console.log('📝 Guardando artículo:', {
         isEditing,
-        id,
+        articleId,
         originalTable,
         dataKeys: Object.keys(articleData),
         contentLength: articleData.content.length
@@ -1829,9 +1866,9 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className={onExit ? "bg-slate-50" : "min-h-screen bg-slate-50"}>
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm">
+      <header className={onExit ? "border-b border-slate-200 bg-white shadow-sm" : "sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm"}>
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1841,18 +1878,8 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                   if (descriptionTimeoutRef.current) {
                     clearTimeout(descriptionTimeoutRef.current);
                   }
-                  if (editorRef.current) {
-                    try {
-                      const quill = editorRef.current;
-                      if (quill && typeof quill.off === 'function') {
-                        quill.off('text-change');
-                        quill.off('selection-change');
-                      }
-                    } catch (e) {
-                      console.warn('Error limpiando editor:', e);
-                    }
-                  }
-                  navigate('/admin', { replace: true });
+                  // No need to manually clean up ReactQuill - React handles it
+                  exitEditor();
                 }}
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
               >
@@ -2149,11 +2176,27 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                   )}
                 </div>
               </div>
-              <textarea
+              <ReactQuill
                 ref={editorRef}
-                defaultValue={formData.content}
-                onChange={(e) => handleContentChange(e.target.value)}
-                className="w-full min-h-[500px] p-4 border border-gray-300 rounded-lg"
+                value={formData.content}
+                onChange={handleContentChange}
+                theme="snow"
+                className="bg-white"
+                style={{ minHeight: '500px' }}
+                modules={{
+                  toolbar: [
+                    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'script': 'sub'}, { 'script': 'super' }],
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                    [{ 'direction': 'rtl' }],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'align': [] }],
+                    ['link', 'image', 'video'],
+                    ['clean']
+                  ]
+                }}
                 placeholder="Escribe el contenido del artículo aquí..."
               />
             </section>

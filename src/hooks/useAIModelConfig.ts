@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { enforceGoogleAIRateLimit } from '../lib/googleAI';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../lib/AuthContext';
 
 export interface AIModelConfig {
   selectedModel: string;
@@ -21,31 +22,63 @@ const DEFAULT_CONFIG: AIModelConfig = {
 export const useAIModelConfig = () => {
   const [config, setConfig] = useState<AIModelConfig>(DEFAULT_CONFIG);
   const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
-    // Load saved configuration
-    const savedModel = localStorage.getItem('selectedAIModel');
-    const savedFallback = localStorage.getItem('aiFallbackOrder');
+    const loadConfig = async () => {
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
 
-    const loadedConfig: AIModelConfig = {
-      selectedModel: savedModel || DEFAULT_CONFIG.selectedModel,
-      fallbackOrder: savedFallback ? JSON.parse(savedFallback) : DEFAULT_CONFIG.fallbackOrder
+      try {
+        const { data, error } = await supabase
+          .from('user_settings')
+          .select('settings')
+          .eq('setting_key', 'ai_model_config')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error loading AI model config:', error);
+          setIsLoading(false);
+          return;
+        }
+
+        if (data?.settings) {
+          setConfig(prev => ({ ...prev, ...data.settings }));
+        }
+      } catch (error) {
+        console.error('Error loading AI config:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    setConfig(loadedConfig);
-    setIsLoading(false);
-  }, []);
+    loadConfig();
+  }, [user]);
 
-  const updateConfig = (newConfig: Partial<AIModelConfig>) => {
+  const updateConfig = async (newConfig: Partial<AIModelConfig>) => {
     const updatedConfig = { ...config, ...newConfig };
     setConfig(updatedConfig);
 
-    // Save to localStorage
-    if (newConfig.selectedModel !== undefined) {
-      localStorage.setItem('selectedAIModel', newConfig.selectedModel);
-    }
-    if (newConfig.fallbackOrder !== undefined) {
-      localStorage.setItem('aiFallbackOrder', JSON.stringify(newConfig.fallbackOrder));
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert({
+          user_id: user.id,
+          setting_key: 'ai_model_config',
+          settings: updatedConfig,
+          updated_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        console.error('Error saving AI config:', error);
+      }
+    } catch (error) {
+      console.error('Error saving AI config:', error);
     }
   };
 

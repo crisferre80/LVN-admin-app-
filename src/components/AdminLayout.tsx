@@ -7,9 +7,9 @@ import {
   Play,
   LogOut,
   Trash2,
-  Globe,
   Settings,
   Clock,
+  Edit,
   // Zap, ShieldCheck, Star removed (merged into 'settings')
   Mail,
   Menu,
@@ -108,10 +108,6 @@ export function AdminLayout({ currentSection, onSectionChange, children }: Admin
       setIsLoggingOut(true);
       console.log('Cerrando sesión...');
       
-      // Limpiar localStorage antes de cerrar sesión
-      localStorage.clear();
-      sessionStorage.clear();
-      
       // signOut ya manejará la redirección a la URL limpia
       await signOut();
       
@@ -120,9 +116,7 @@ export function AdminLayout({ currentSection, onSectionChange, children }: Admin
       window.location.href = 'https://www.lavozdelnortediario.com';
     } catch (error) {
       console.error('Error during logout:', error);
-      // En caso de error, forzar limpieza y redirección a URL limpia
-      localStorage.clear();
-      sessionStorage.clear();
+      // En caso de error, forzar redirección a URL limpia
       window.location.href = 'https://www.lavozdelnortediario.com';
     }
   };
@@ -145,6 +139,12 @@ export function AdminLayout({ currentSection, onSectionChange, children }: Admin
       label: 'Artículos',
       helper: 'Redacción, galerías y publicaciones',
       icon: FileText,
+    },
+    {
+      id: 'editor' as AdminSection,
+      label: 'Editor',
+      helper: 'Crear y editar artículos',
+      icon: Edit,
     },
     {
       id: 'settings' as AdminSection,

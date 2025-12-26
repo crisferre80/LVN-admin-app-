@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AdminLayout } from './AdminLayout';
 import { ArticlesManager } from './ArticlesManager';
 import { AdsManager } from './AdsManager';
@@ -12,26 +13,30 @@ import { AIModelSelector } from './AIModelSelector';
 import { AutomationManager } from './AutomationManager';
 import EmailManager from './EmailManager';
 import { RSSManager } from './RSSManager';
+import { ArticleEditor } from './ArticleEditor';
 import type { AdminSection } from '../types/admin';
 
 export function AdminPanel() {
   const [currentSection, setCurrentSection] = useState<AdminSection>('articles');
-  const [isPageVisible, setIsPageVisible] = useState(true);
+  const [editorParams, setEditorParams] = useState<{
+    editId?: string;
+    isNew?: boolean;
+    isRewrite?: boolean;
+  }>({});
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Detectar cuando la página pierde/gana visibilidad
+  // Detectar si debemos cambiar automáticamente a la sección editor
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      const visible = !document.hidden;
-      setIsPageVisible(visible);
-      console.log('[AdminPanel] 👁️ Visibilidad de página:', visible ? 'visible' : 'oculta');
-    };
+    const editId = searchParams.get('edit');
+    const newArticle = searchParams.get('new');
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
+    if (editId || newArticle) {
+      console.log('[AdminPanel] 🎯 Detectada solicitud de edición, cambiando a sección editor');
+      setCurrentSection('editor');
+      // Limpiar los parámetros de la URL después de procesarlos
+      setSearchParams(new URLSearchParams());
+    }
+  }, [searchParams, setSearchParams]);
 
   // Monitorear cambios en currentSection
   useEffect(() => {
@@ -41,16 +46,20 @@ export function AdminPanel() {
     });
   }, [currentSection]);
 
-  const handleSectionChange = useCallback((section: string) => {
+  const handleSectionChange = useCallback((section: string, params?: { editId?: string; isNew?: boolean; isRewrite?: boolean }) => {
     console.log('[AdminPanel] 📋 handleSectionChange llamado:', {
       seccionSolicitada: section,
+      parametros: params,
       seccionActual: currentSection,
-      esValida: ['articles', 'ads', 'settings', 'media', 'videos', 'cleanup', 'models', 'automation', 'emails', 'rss'].includes(section),
+      esValida: ['articles', 'ads', 'settings', 'media', 'videos', 'cleanup', 'models', 'automation', 'emails', 'rss', 'editor'].includes(section),
       timestamp: new Date().toISOString()
     });
-    if (['articles', 'ads', 'settings', 'media', 'videos', 'cleanup', 'models', 'automation', 'emails', 'rss'].includes(section)) {
+    if (['articles', 'ads', 'settings', 'media', 'videos', 'cleanup', 'models', 'automation', 'emails', 'rss', 'editor'].includes(section)) {
       console.log('[AdminPanel] ✅ Sección válida, actualizando estado a:', section);
       setCurrentSection(section as AdminSection);
+      if (section === 'editor' && params) {
+        setEditorParams(params);
+      }
     } else {
       console.warn('[AdminPanel] ⚠️ Sección NO válida, ignorando:', section);
     }
@@ -58,49 +67,51 @@ export function AdminPanel() {
 
   const renderContent = useMemo(() => {
     console.log('[AdminPanel] 🎨 Renderizando contenido para sección:', currentSection);
-    
-    // Si la página no es visible, no renderizar componentes pesados
-    if (!isPageVisible) {
-      console.log('[AdminPanel] 💤 Página no visible, suspendiendo renderizado pesado');
-      return null;
-    }
 
-    switch (currentSection) {
-      case 'articles':
-        console.log('[AdminPanel] 📝 Renderizando ArticlesManager');
-        return <ArticlesManager onSectionChange={handleSectionChange} />;
-      case 'ads':
-        console.log('[AdminPanel] 📊 Renderizando AdsManager');
-        return <AdsManager />;
-      case 'settings':
-        console.log('[AdminPanel] ⚙️ Renderizando SettingsCenter');
-        return <SettingsCenter />;
-      case 'media':
-        console.log('[AdminPanel] 🖼️ Renderizando MediaManager');
-        return <MediaManager />;
-      case 'videos':
-        console.log('[AdminPanel] 🎥 Renderizando VideoManager');
-        return <VideoManager />;
-      case 'cleanup':
-        console.log('[AdminPanel] 🧹 Renderizando CleanupManager');
-        return <CleanupManager />;
-      case 'models':
-        console.log('[AdminPanel] 🤖 Renderizando AIModelSelector');
-        return <AIModelSelector />;
-      case 'automation':
-        console.log('[AdminPanel] ⏰ Renderizando AutomationManager');
-        return <AutomationManager />;
-      case 'emails':
-        console.log('[AdminPanel] 📧 Renderizando EmailManager');
-        return <EmailManager />;
-      case 'rss':
-        console.log('[AdminPanel] 📡 Renderizando RSSManager');
-        return <RSSManager />;
-      default:
-        console.log('[AdminPanel] ⚠️ Sección desconocida, renderizando ArticlesManager por defecto');
-        return <ArticlesManager onSectionChange={handleSectionChange} />;
-    }
-  }, [currentSection, isPageVisible, handleSectionChange]);
+    // Mantener todos los componentes montados para preservar estado
+    return (
+      <div className="relative">
+        <div className={currentSection === 'articles' ? 'block' : 'hidden'}>
+          <ArticlesManager onSectionChange={handleSectionChange} />
+        </div>
+        <div className={currentSection === 'ads' ? 'block' : 'hidden'}>
+          <AdsManager />
+        </div>
+        <div className={currentSection === 'settings' ? 'block' : 'hidden'}>
+          <SettingsCenter />
+        </div>
+        <div className={currentSection === 'media' ? 'block' : 'hidden'}>
+          <MediaManager />
+        </div>
+        <div className={currentSection === 'videos' ? 'block' : 'hidden'}>
+          <VideoManager />
+        </div>
+        <div className={currentSection === 'cleanup' ? 'block' : 'hidden'}>
+          <CleanupManager />
+        </div>
+        <div className={currentSection === 'models' ? 'block' : 'hidden'}>
+          <AIModelSelector />
+        </div>
+        <div className={currentSection === 'automation' ? 'block' : 'hidden'}>
+          <AutomationManager />
+        </div>
+        <div className={currentSection === 'emails' ? 'block' : 'hidden'}>
+          <EmailManager />
+        </div>
+        <div className={currentSection === 'rss' ? 'block' : 'hidden'}>
+          <RSSManager />
+        </div>
+        <div className={currentSection === 'editor' ? 'block' : 'hidden'}>
+          <ArticleEditor 
+            onExit={() => setCurrentSection('articles')} 
+            initialEditId={editorParams.editId}
+            initialNew={editorParams.isNew}
+            initialRewrite={editorParams.isRewrite}
+          />
+        </div>
+      </div>
+    );
+  }, [currentSection, handleSectionChange, editorParams]);
 
   return (
     <AdminLayout currentSection={currentSection} onSectionChange={setCurrentSection}>

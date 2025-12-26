@@ -1,9 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { AdminPanel } from './components/AdminPanel';
 import { Login } from './components/Login';
 import { Register } from './components/Register';
-import { ArticleEditor } from './components/ArticleEditor';
 import { BulkArticleGenerator } from './components/BulkArticleGenerator';
 import { AuthProvider, useAuth } from './lib/AuthContext';
 import { Toaster } from 'react-hot-toast';
@@ -11,6 +10,28 @@ import { Toaster } from 'react-hot-toast';
 function AppRoutes() {
   const { user, loading } = useAuth();
   const [authTimeout, setAuthTimeout] = useState(false);
+
+  // Componente para redirigir rutas antiguas del editor
+  function EditorRedirector() {
+    const navigate = useNavigate();
+    const { id } = useParams<{ id?: string }>();
+    const location = useLocation();
+
+    useEffect(() => {
+      const searchParams = new URLSearchParams(location.search);
+      const rewrite = searchParams.get('rewrite');
+
+      if (id) {
+        // Redirigir edición con ID
+        navigate(`/admin?edit=${id}${rewrite ? '&rewrite=true' : ''}`, { replace: true });
+      } else {
+        // Redirigir creación nueva
+        navigate('/admin?new=true', { replace: true });
+      }
+    }, [id, location.search, navigate]);
+
+    return null;
+  }
 
   // Timeout de seguridad para evitar loading infinito
   useEffect(() => {
@@ -47,11 +68,11 @@ function AppRoutes() {
       />
       <Route
         path="/admin/article/new"
-        element={user ? <ArticleEditor /> : <Navigate to="/login" />}
+        element={user ? <EditorRedirector /> : <Navigate to="/login" />}
       />
       <Route
         path="/admin/article/edit/:id"
-        element={user ? <ArticleEditor /> : <Navigate to="/login" />}
+        element={user ? <EditorRedirector /> : <Navigate to="/login" />}
       />
       <Route
         path="/admin/bulk-generator"

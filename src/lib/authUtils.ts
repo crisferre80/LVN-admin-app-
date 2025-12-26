@@ -9,23 +9,6 @@ export const clearAuthState = async () => {
   try {
     console.log('Limpiando estado de autenticación...');
 
-    // Guardar preferencias del usuario antes de limpiar
-    const userPreferences = localStorage.getItem('user-preferences');
-    const lastActiveSession = localStorage.getItem('last-active-session');
-
-    // Limpiar localStorage y sessionStorage
-    localStorage.clear();
-    sessionStorage.clear();
-
-    // Restaurar preferencias si existían
-    if (userPreferences) {
-      try {
-        localStorage.setItem('user-preferences', userPreferences);
-      } catch (e) {
-        console.warn('No se pudieron restaurar preferencias de usuario');
-      }
-    }
-
     // Intentar signOut de Supabase (sin esperar)
     supabase.auth.signOut().catch(err => {
       console.warn('Error en signOut durante limpieza:', err);
