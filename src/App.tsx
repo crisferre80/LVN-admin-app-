@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { Dashboard } from './components/Dashboard';
 import { AdminPanel } from './components/AdminPanel';
-import { Login } from './components/Login';
 import { Register } from './components/Register';
 import { BulkArticleGenerator } from './components/BulkArticleGenerator';
 import { AuthProvider, useAuth } from './lib/AuthContext';
@@ -60,25 +60,25 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route
         path="/admin"
-        element={user ? <AdminPanel /> : <Navigate to="/login" />}
+        element={user ? <AdminPanel /> : <Navigate to="/" />}
       />
       <Route
         path="/admin/article/new"
-        element={user ? <EditorRedirector /> : <Navigate to="/login" />}
+        element={user ? <EditorRedirector /> : <Navigate to="/" />}
       />
       <Route
         path="/admin/article/edit/:id"
-        element={user ? <EditorRedirector /> : <Navigate to="/login" />}
+        element={user ? <EditorRedirector /> : <Navigate to="/" />}
       />
       <Route
         path="/admin/bulk-generator"
-        element={user ? <BulkArticleGenerator onComplete={() => window.location.href = '/admin'} /> : <Navigate to="/login" />}
+        element={user ? <BulkArticleGenerator onComplete={() => window.location.href = '/admin'} /> : <Navigate to="/" />}
       />
-      <Route path="/" element={<Navigate to={user ? "/admin" : "/login"} />} />
+      <Route path="/login" element={<Navigate to="/" />} />
+      <Route path="/" element={<Dashboard />} />
     </Routes>
   );
 }

@@ -1712,7 +1712,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
       // Configurar timeout para operaciones de BD
       const dbTimeout = 30000; // 30 segundos máximo
 
-      if (isEditing && id) {
+      if (isEditing && articleId) {
         // Edición de artículo existente
         if (originalTable === 'articles' || originalTable === 'local_news') {
           // Migrar de RSS a artículos propios
@@ -1723,7 +1723,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
           // Crear timeout para la inserción
           const insertPromise = supabase
             .from('ai_generated_articles')
-            .insert([{ ...articleData, id, created_at: nowIso }]);
+            .insert([{ ...articleData, id: articleId, created_at: nowIso }]);
 
           const insertTimeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('TIMEOUT_DB_INSERT')), dbTimeout)
@@ -1738,7 +1738,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
               const updatePromise = supabase
                 .from('ai_generated_articles')
                 .update(articleData)
-                .eq('id', id)
+                .eq('id', articleId)
                 .select();
 
               const updateTimeoutPromise = new Promise((_, reject) =>
@@ -1755,7 +1755,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
           }
           
           // Limpiar tabla original en background (sin esperar)
-          supabase.from(originalTable).delete().eq('id', id).then(() => {
+          supabase.from(originalTable).delete().eq('id', articleId).then(() => {
             console.log('Tabla original limpiada en background');
           }, (err: unknown) => {
             console.warn('Error limpiando tabla original:', err);
@@ -1772,7 +1772,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
           const updatePromise = supabase
             .from('ai_generated_articles')
             .update(articleData)
-            .eq('id', id)
+            .eq('id', articleId)
             .select();
 
           const updateTimeoutPromise = new Promise((_, reject) =>
