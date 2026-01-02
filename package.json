@@ -31,6 +31,7 @@
     "@google/generative-ai": "^0.24.1",
     "@heroicons/react": "^2.2.0",
     "@huggingface/inference": "^4.11.1",
+    "@netlify/functions": "^5.1.2",
     "@react-email/components": "^1.0.1",
     "@react-email/render": "^2.0.0",
     "@supabase/supabase-js": "^2.57.4",
