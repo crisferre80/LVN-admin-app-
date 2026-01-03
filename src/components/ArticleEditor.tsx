@@ -14,7 +14,10 @@ import {
   Music,
   Wifi,
   WifiOff,
-  Clock
+  Clock,
+  BookMarked,
+  Trash2,
+  Globe
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { GalleryManager, GalleryTemplate } from './GalleryManager';
@@ -28,6 +31,7 @@ import { markdownToHtml } from '../lib/markdownUtils';
 import { rewriteWithOpenRouter, generateContentWithOpenRouter, generateWithOpenRouter } from '../lib/openRouter';
 import { rewriteWithOpenAI, generateWithOpenAIEdge } from '../lib/openai';
 import { rewriteWithPuter, generateContentWithPuter, generateWithPuter } from '../lib/puter';
+import { searchWebForTopic } from '../lib/webResearch';
 import compress from 'browser-image-compression';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
@@ -153,6 +157,15 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
   const [customTopic, setCustomTopic] = useState('');
   const [showStyleSelector, setShowStyleSelector] = useState(false);
   const [showAudioTranscriber, setShowAudioTranscriber] = useState(false);
+  
+  // Custom prompt and templates states
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [useCustomPrompt, setUseCustomPrompt] = useState(false);
+  const [savedTemplates, setSavedTemplates] = useState<Array<{id: string, name: string, prompt: string}>>([]);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [useWebResearch, setUseWebResearch] = useState(false);
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
 
   // Image generation states
   const [generatingImage, setGeneratingImage] = useState(false);
@@ -612,10 +625,62 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
       console.log('✅ [MANUAL] Reescritura de contenido completada');
     }
   };
+
+  // Cargar plantillas guardadas al montar el componente
+  useEffect(() => {
+    const templates = localStorage.getItem('promptTemplates');
+    if (templates) {
+      try {
+        setSavedTemplates(JSON.parse(templates));
+      } catch (error) {
+        console.error('Error loading templates:', error);
+      }
+    }
+  }, []);
+
+  // Función para guardar plantilla
+  const saveTemplate = () => {
+    if (!templateName.trim() || !customPrompt.trim()) {
+      toast.error('Ingresa un nombre y un prompt para guardar la plantilla');
+      return;
+    }
+    
+    const newTemplate = {
+      id: Date.now().toString(),
+      name: templateName.trim(),
+      prompt: customPrompt.trim()
+    };
+    
+    const updatedTemplates = [...savedTemplates, newTemplate];
+    setSavedTemplates(updatedTemplates);
+    localStorage.setItem('promptTemplates', JSON.stringify(updatedTemplates));
+    setTemplateName('');
+    setShowSaveTemplate(false);
+    toast.success(`Plantilla "${newTemplate.name}" guardada exitosamente`);
+  };
+
+  // Función para cargar plantilla
+  const loadTemplate = (template: {id: string, name: string, prompt: string}) => {
+    setCustomPrompt(template.prompt);
+    setUseCustomPrompt(true);
+    toast.info(`Plantilla "${template.name}" cargada`);
+  };
+
+  // Función para eliminar plantilla
+  const deleteTemplate = (id: string) => {
+    const templateToDelete = savedTemplates.find(t => t.id === id);
+    const updatedTemplates = savedTemplates.filter(t => t.id !== id);
+    setSavedTemplates(updatedTemplates);
+    localStorage.setItem('promptTemplates', JSON.stringify(updatedTemplates));
+    if (templateToDelete) {
+      toast.success(`Plantilla "${templateToDelete.name}" eliminada`);
+    }
+  };
+
   const generateContentWithAI = async () => {
-    // Solo requerir customTopic si no hay contenido existente
-    if (!customTopic.trim() && !formData.content?.trim()) {
-      toast.error('Ingresa un tema para el artículo o asegúrate de que haya contenido existente');
+    // Validaciones: necesitamos tema o prompt personalizado o contenido existente
+    if (!customTopic.trim() && !customPrompt.trim() && !formData.content?.trim()) {
+      toast.error('Ingresa un tema, un prompt personalizado o asegúrate de que haya contenido existente');
       return;
     }
 
@@ -625,6 +690,22 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
     setGenerating(true);
 
     try {
+      let researchData = '';
+      
+      // Si está habilitada la investigación web y hay un tema
+      if (useWebResearch && customTopic.trim()) {
+        toast.info('🔍 Investigando en la web...');
+        try {
+          researchData = await searchWebForTopic(customTopic);
+          if (researchData) {
+            toast.success('Información de otros medios obtenida');
+          }
+        } catch (error) {
+          console.error('Error en investigación web:', error);
+          toast.warning('No se pudo completar la investigación web, continuando sin ella');
+        }
+      }
+
       const selectedPrompt = JOURNALISTIC_PROMPTS[selectedStyle];
       if (!selectedPrompt) {
         toast.error('Estilo periodístico no encontrado');
@@ -634,11 +715,27 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
       let generatedContent = '';
       let provider = '';
 
-      // Determinar el tema base: usar customTopic si existe, sino el título del artículo
+      // Determinar el tema base
       const baseTopic = customTopic.trim() || formData.title || 'Artículo sin título';
 
-      // Crear prompt para generar contenido nuevo basado en el artículo existente o tema
-      const generationPrompt = `${selectedPrompt.systemPrompt}
+      // Crear prompt: si hay custom prompt, usarlo; sino usar el estándar
+      let generationPrompt: string;
+      
+      if (useCustomPrompt && customPrompt.trim()) {
+        // Usar prompt personalizado, agregando contexto de investigación si existe
+        generationPrompt = customPrompt.trim();
+        
+        if (researchData) {
+          generationPrompt += `\n\n${researchData}`;
+        }
+        
+        // Agregar contexto del artículo si existe
+        if (formData.content?.trim()) {
+          generationPrompt += `\n\nContenido existente del artículo:\n${formData.content.replace(/<[^>]*>/g, '').substring(0, 1000)}`;
+        }
+      } else {
+        // Usar prompt estándar con el estilo seleccionado
+        generationPrompt = `${selectedPrompt.systemPrompt}
 
 INFORMACIÓN DEL ARTÍCULO ACTUAL:
 - Título: "${formData.title || 'Sin título'}"
@@ -647,7 +744,10 @@ INFORMACIÓN DEL ARTÍCULO ACTUAL:
 - Contenido existente: "${formData.content ? formData.content.replace(/<[^>]*>/g, '').substring(0, 1000) : 'Sin contenido previo'}"
 - Fuente: ${formData.rss_source_id ? `Fuente RSS ID: ${formData.rss_source_id}` : 'Artículo propio'}
 
+${researchData ? `INFORMACIÓN INVESTIGADA EN LA WEB:\n${researchData}\n\n` : ''}
+
 ${selectedPrompt.userPromptTemplate.replace('{topic}', baseTopic).replace('{additionalContext}', formData.content ? `Utiliza el contenido existente como base y expándelo o reescríbelo según el estilo solicitado. Mantén la misma categoría (${formData.category}) y el enfoque del artículo original.` : `Genera nuevo contenido basado en el tema especificado.`)}`;
+      }
 
       // Usar el proveedor seleccionado por el usuario
       switch (selectedProvider) {
@@ -686,7 +786,7 @@ ${selectedPrompt.userPromptTemplate.replace('{topic}', baseTopic).replace('{addi
           try {
             const result = await generateWithOpenAIEdge(generationPrompt, {
               model: 'gpt-4o-mini', // Modelo optimizado con mejor calidad y razonamiento
-              systemPrompt: selectedPrompt.systemPrompt,
+              systemPrompt: useCustomPrompt ? '' : selectedPrompt.systemPrompt,
               temperature: 0.7,
               maxTokens: Math.min(selectedPrompt.maxWords * 4, 16000) // gpt-4o-mini soporta hasta 16k tokens de salida
             });
@@ -1980,7 +2080,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                 <div className="mb-4 space-y-3">
                   <div>
                     <label className="text-sm font-medium text-slate-700">
-                      Tema del artículo {!formData.content?.trim() && <span className="text-red-500">*</span>}
+                      Tema del artículo {!formData.content?.trim() && !useCustomPrompt && <span className="text-red-500">*</span>}
                     </label>
                     <input
                       type="text"
@@ -1988,64 +2088,208 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                       onChange={(e) => setCustomTopic(e.target.value)}
                       placeholder={formData.content?.trim() ? "Opcional: especifica un enfoque particular..." : "Ej: Nuevas medidas económicas del gobierno"}
                       className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+                      disabled={useCustomPrompt}
                     />
-                    {formData.content?.trim() && (
+                    {formData.content?.trim() && !useCustomPrompt && (
                       <p className="mt-1 text-xs text-slate-500">
                         El artículo ya tiene contenido. Puedes dejar este campo vacío para usar el contenido existente como base.
                       </p>
                     )}
                   </div>
-                </div>
 
-                <div className="mb-4">
-                  <label className="text-sm font-medium text-slate-700">
-                    Proveedor de IA
-                  </label>
-                  <select
-                    value={selectedProvider}
-                    onChange={(e) => setSelectedProvider(e.target.value)}
-                    className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
-                  >
-                    {aiConfig.fallbackOrder.map(provider => (
-                      <option key={provider} value={provider}>
-                        {provider === 'google' ? 'Google AI (Gemini)' :
-                         provider === 'openrouter' ? 'OpenRouter' :
-                         provider === 'openai' ? 'OpenAI' :
-                         provider === 'puter' ? 'Puter AI' : provider}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Selecciona el proveedor de IA que deseas usar para generar el contenido.
-                  </p>
-                </div>
+                  {/* Opción para usar prompt personalizado */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="useCustomPrompt"
+                      checked={useCustomPrompt}
+                      onChange={(e) => {
+                        setUseCustomPrompt(e.target.checked);
+                        if (!e.target.checked) {
+                          setCustomPrompt('');
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-purple-600 focus:ring-2 focus:ring-purple-100"
+                    />
+                    <label htmlFor="useCustomPrompt" className="text-sm font-medium text-slate-700 cursor-pointer">
+                      Usar prompt personalizado
+                    </label>
+                  </div>
 
-                <div className="mb-4">
-                  <label className="text-sm font-medium text-slate-700">
-                    Estilo periodístico
-                  </label>
-                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
-                    {Object.values(JOURNALISTIC_PROMPTS).map(prompt => (
-                      <button
-                        key={prompt.id}
-                        type="button"
-                        onClick={() => setSelectedStyle(prompt.id)}
-                        className={`rounded-2xl border-2 p-4 text-left transition ${
-                          selectedStyle === prompt.id
-                            ? 'border-purple-500 bg-purple-100'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
-                      >
-                        <div className="mb-2 text-2xl">{prompt.icon}</div>
-                        <h4 className="font-semibold text-slate-800">{prompt.name}</h4>
-                        <p className="mt-1 text-xs text-slate-500">{prompt.description}</p>
-                        <p className="mt-2 text-xs text-slate-400">
-                          {prompt.minWords}-{prompt.maxWords} palabras
+                  {/* Textarea para prompt personalizado */}
+                  {useCustomPrompt && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-slate-700">
+                          Prompt personalizado <span className="text-red-500">*</span>
+                        </label>
+                        <button
+                          onClick={() => setShowTemplateManager(!showTemplateManager)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100"
+                        >
+                          <BookMarked className="h-3 w-3" />
+                          Plantillas ({savedTemplates.length})
+                        </button>
+                      </div>
+                      <textarea
+                        value={customPrompt}
+                        onChange={(e) => setCustomPrompt(e.target.value)}
+                        placeholder="Ej: Escribe un artículo informativo sobre [tema] incluyendo estadísticas, opiniones de expertos y análisis de impacto económico. El tono debe ser profesional y objetivo."
+                        rows={6}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+                      />
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-slate-500">
+                          Define exactamente cómo quieres que la IA genere tu artículo.
                         </p>
-                      </button>
-                    ))}
+                        {customPrompt.trim() && (
+                          <button
+                            onClick={() => setShowSaveTemplate(true)}
+                            className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                          >
+                            💾 Guardar como plantilla
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Modal para guardar plantilla */}
+                      {showSaveTemplate && (
+                        <div className="mt-3 rounded-2xl border border-purple-200 bg-purple-50 p-4">
+                          <h4 className="mb-2 text-sm font-semibold text-slate-800">Guardar plantilla</h4>
+                          <input
+                            type="text"
+                            value={templateName}
+                            onChange={(e) => setTemplateName(e.target.value)}
+                            placeholder="Nombre de la plantilla"
+                            className="mb-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-purple-400 focus:outline-none"
+                            onKeyPress={(e) => {
+                              if (e.key === 'Enter') {
+                                saveTemplate();
+                              }
+                            }}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={saveTemplate}
+                              className="rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
+                            >
+                              Guardar
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowSaveTemplate(false);
+                                setTemplateName('');
+                              }}
+                              className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Gestor de plantillas */}
+                      {showTemplateManager && savedTemplates.length > 0 && (
+                        <div className="mt-3 space-y-2 rounded-2xl border border-purple-200 bg-white p-4 max-h-60 overflow-y-auto">
+                          <h4 className="mb-2 text-sm font-semibold text-slate-800">Mis plantillas</h4>
+                          {savedTemplates.map((template) => (
+                            <div
+                              key={template.id}
+                              className="flex items-start justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 hover:bg-slate-100"
+                            >
+                              <div className="flex-1 cursor-pointer" onClick={() => loadTemplate(template)}>
+                                <p className="text-sm font-medium text-slate-800">{template.name}</p>
+                                <p className="mt-1 text-xs text-slate-500 line-clamp-2">{template.prompt}</p>
+                              </div>
+                              <button
+                                onClick={() => deleteTemplate(template.id)}
+                                className="text-red-500 hover:text-red-700"
+                                title="Eliminar plantilla"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Opción de investigación web */}
+                  <div className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                    <input
+                      type="checkbox"
+                      id="useWebResearch"
+                      checked={useWebResearch}
+                      onChange={(e) => setUseWebResearch(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-100"
+                      disabled={!customTopic.trim() && !useCustomPrompt}
+                    />
+                    <label htmlFor="useWebResearch" className="flex-1 cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-indigo-600" />
+                        <span className="text-sm font-medium text-slate-700">Investigar en otros diarios</span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        La IA buscará información en medios reconocidos para crear un artículo más informado y preciso.
+                      </p>
+                    </label>
                   </div>
                 </div>
+
+                {!useCustomPrompt && (
+                  <div>
+                    <div className="mb-4">
+                      <label className="text-sm font-medium text-slate-700">
+                        Proveedor de IA
+                      </label>
+                      <select
+                        value={selectedProvider}
+                        onChange={(e) => setSelectedProvider(e.target.value)}
+                        className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+                      >
+                        {aiConfig.fallbackOrder.map(provider => (
+                          <option key={provider} value={provider}>
+                            {provider === 'google' ? 'Google AI (Gemini)' :
+                             provider === 'openrouter' ? 'OpenRouter' :
+                             provider === 'openai' ? 'OpenAI' :
+                             provider === 'puter' ? 'Puter AI' : provider}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Selecciona el proveedor de IA que deseas usar para generar el contenido.
+                      </p>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="text-sm font-medium text-slate-700">
+                        Estilo periodístico
+                      </label>
+                      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                        {Object.values(JOURNALISTIC_PROMPTS).map(prompt => (
+                          <button
+                            key={prompt.id}
+                            type="button"
+                            onClick={() => setSelectedStyle(prompt.id)}
+                            className={`rounded-2xl border-2 p-4 text-left transition ${
+                              selectedStyle === prompt.id
+                                ? 'border-purple-500 bg-purple-100'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="mb-2 text-2xl">{prompt.icon}</div>
+                            <h4 className="font-semibold text-slate-800">{prompt.name}</h4>
+                            <p className="mt-1 text-xs text-slate-500">{prompt.description}</p>
+                            <p className="mt-2 text-xs text-slate-400">
+                              {prompt.minWords}-{prompt.maxWords} palabras
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <button
                   onClick={generateContentWithAI}
@@ -2055,7 +2299,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                   {generating ? (
                     <span className="flex items-center justify-center gap-2">
                       <Loader className="h-5 w-5 animate-spin" />
-                      Generando...
+                      {useWebResearch ? 'Investigando y generando...' : 'Generando...'}
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-2">
