@@ -516,6 +516,21 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
     setGenerating(true);
 
     try {
+      let rewrittenContent = '';
+      let provider = '';
+      const openrouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+      
+      // Crear prompt para reescritura
+      const rewritePrompt = `Reescribe el siguiente artículo mejorando su calidad, claridad y estilo periodístico. Mantén el mismo tema y enfoque principal.
+
+Título: ${formData.title}
+Categoría: ${formData.category}
+
+Contenido original:
+${formData.content.replace(/<[^>]*>/g, '')}
+
+Reescribe el artículo de forma profesional y atractiva.`;
+      
       // Usar el orden de fallback configurado
       for (const providerName of aiConfig.fallbackOrder) {
         if (rewrittenContent) break; // Si ya tenemos contenido, salir
@@ -663,7 +678,7 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
   const loadTemplate = (template: {id: string, name: string, prompt: string}) => {
     setCustomPrompt(template.prompt);
     setUseCustomPrompt(true);
-    toast.info(`Plantilla "${template.name}" cargada`);
+    toast(`Plantilla "${template.name}" cargada`, { icon: '📋' });
   };
 
   // Función para eliminar plantilla
@@ -687,6 +702,13 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
     // Marcar como generación manual solicitada por el usuario
     setIsManualGeneration(true);
     console.log('🤖 [MANUAL] Usuario solicitó generación de contenido completo con IA');
+    console.log('📋 Parámetros:', { 
+      useCustomPrompt, 
+      useWebResearch, 
+      customTopic: customTopic.trim(),
+      selectedProvider,
+      selectedStyle 
+    });
     setGenerating(true);
 
     try {
@@ -694,15 +716,18 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
       
       // Si está habilitada la investigación web y hay un tema
       if (useWebResearch && customTopic.trim()) {
-        toast.info('🔍 Investigando en la web...');
+        toast('🔍 Investigando en la web...', { icon: '🔍' });
         try {
           researchData = await searchWebForTopic(customTopic);
           if (researchData) {
+            console.log('✅ Información de investigación obtenida:', researchData.length, 'caracteres');
             toast.success('Información de otros medios obtenida');
+          } else {
+            console.warn('⚠️ No se obtuvo información de investigación web');
           }
         } catch (error) {
           console.error('Error en investigación web:', error);
-          toast.warning('No se pudo completar la investigación web, continuando sin ella');
+          toast('No se pudo completar la investigación web, continuando sin ella', { icon: '⚠️' });
         }
       }
 
@@ -720,34 +745,59 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
 
       // Crear prompt: si hay custom prompt, usarlo; sino usar el estándar
       let generationPrompt: string;
+      let systemPromptForAI = '';
       
       if (useCustomPrompt && customPrompt.trim()) {
-        // Usar prompt personalizado, agregando contexto de investigación si existe
-        generationPrompt = customPrompt.trim();
+        // Usar prompt personalizado - más limpio y directo
+        systemPromptForAI = 'Eres un periodista profesional experto. Genera contenido de alta calidad siguiendo exactamente las instrucciones del usuario.';
+        
+        generationPrompt = `INSTRUCCIONES DEL USUARIO:\n${customPrompt.trim()}\n\n`;
+        generationPrompt += `TEMA PRINCIPAL: ${baseTopic}\n`;
+        generationPrompt += `CATEGORÍA: ${formData.category}\n\n`;
         
         if (researchData) {
-          generationPrompt += `\n\n${researchData}`;
+          generationPrompt += `INFORMACIÓN DE REFERENCIA (usa como contexto pero NO copies literalmente):\n${researchData}\n\n`;
         }
         
-        // Agregar contexto del artículo si existe
-        if (formData.content?.trim()) {
-          generationPrompt += `\n\nContenido existente del artículo:\n${formData.content.replace(/<[^>]*>/g, '').substring(0, 1000)}`;
-        }
+        generationPrompt += `IMPORTANTE: Concéntrate en el tema principal "${baseTopic}" y sigue las instrucciones del usuario. ${researchData ? 'Usa la información de referencia para enriquecer tu contenido pero escribe con tus propias palabras.' : ''} Genera un artículo completo y bien estructurado.`;
+        
       } else {
-        // Usar prompt estándar con el estilo seleccionado
-        generationPrompt = `${selectedPrompt.systemPrompt}
-
-INFORMACIÓN DEL ARTÍCULO ACTUAL:
-- Título: "${formData.title || 'Sin título'}"
-- Descripción: "${formData.description || 'Sin descripción disponible'}"
-- Categoría: ${formData.category}
-- Contenido existente: "${formData.content ? formData.content.replace(/<[^>]*>/g, '').substring(0, 1000) : 'Sin contenido previo'}"
-- Fuente: ${formData.rss_source_id ? `Fuente RSS ID: ${formData.rss_source_id}` : 'Artículo propio'}
-
-${researchData ? `INFORMACIÓN INVESTIGADA EN LA WEB:\n${researchData}\n\n` : ''}
-
-${selectedPrompt.userPromptTemplate.replace('{topic}', baseTopic).replace('{additionalContext}', formData.content ? `Utiliza el contenido existente como base y expándelo o reescríbelo según el estilo solicitado. Mantén la misma categoría (${formData.category}) y el enfoque del artículo original.` : `Genera nuevo contenido basado en el tema especificado.`)}`;
+        // Usar prompt estándar con el estilo seleccionado - simplificado
+        systemPromptForAI = selectedPrompt.systemPrompt;
+        
+        generationPrompt = `TEMA DEL ARTÍCULO: ${baseTopic}\n`;
+        generationPrompt += `CATEGORÍA: ${formData.category}\n`;
+        generationPrompt += `ESTILO REQUERIDO: ${selectedPrompt.name}\n\n`;
+        
+        if (researchData) {
+          generationPrompt += `INFORMACIÓN DE REFERENCIA de otros medios (úsala como contexto, NO copies textualmente):\n${researchData}\n\n`;
+        }
+        
+        // Solo incluir contenido existente si realmente existe y es significativo
+        if (formData.content && formData.content.replace(/<[^>]*>/g, '').trim().length > 100) {
+          generationPrompt += `NOTA: Hay contenido previo que puedes usar como base si es relevante, pero concéntrate en desarrollar el tema "${baseTopic}" de forma completa.\n\n`;
+        }
+        
+        // Instrucciones claras y concisas
+        generationPrompt += `INSTRUCCIONES:\n`;
+        generationPrompt += `- Escribe un artículo periodístico completo sobre "${baseTopic}"\n`;
+        generationPrompt += `- Longitud: ${selectedPrompt.minWords}-${selectedPrompt.maxWords} palabras\n`;
+        generationPrompt += `- Estilo: ${selectedPrompt.description}\n`;
+        generationPrompt += `- Incluye: introducción, desarrollo detallado y conclusión\n`;
+        generationPrompt += `- ${researchData ? 'Incorpora datos de la información de referencia pero con tus propias palabras\n' : 'Desarrolla el tema con información relevante y actualizada\n'}`;
+        generationPrompt += `- Mantén el foco en el tema principal en todo momento\n`;
+        generationPrompt += `- Usa un formato estructurado con párrafos bien organizados\n\n`;
+        generationPrompt += `Genera el artículo ahora:`;
       }
+
+      // Log del prompt para debugging
+      console.log('📝 Prompt generado:', {
+        systemPrompt: systemPromptForAI.substring(0, 100) + '...',
+        promptLength: generationPrompt.length,
+        hasResearch: !!researchData,
+        researchLength: researchData.length
+      });
+      console.log('📄 Prompt completo:\n', generationPrompt);
 
       // Usar el proveedor seleccionado por el usuario
       switch (selectedProvider) {
@@ -786,9 +836,9 @@ ${selectedPrompt.userPromptTemplate.replace('{topic}', baseTopic).replace('{addi
           try {
             const result = await generateWithOpenAIEdge(generationPrompt, {
               model: 'gpt-4o-mini', // Modelo optimizado con mejor calidad y razonamiento
-              systemPrompt: useCustomPrompt ? '' : selectedPrompt.systemPrompt,
-              temperature: 0.7,
-              maxTokens: Math.min(selectedPrompt.maxWords * 4, 16000) // gpt-4o-mini soporta hasta 16k tokens de salida
+              systemPrompt: systemPromptForAI,
+              temperature: 0.8, // Aumentado para más creatividad y variedad
+              maxTokens: Math.min(selectedPrompt.maxWords * 5, 16000) // Más tokens para respuestas completas
             });
             if (result) {
               generatedContent = result;

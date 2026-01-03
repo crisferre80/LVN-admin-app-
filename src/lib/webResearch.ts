@@ -147,26 +147,27 @@ async function searchWithDuckDuckGo(topic: string): Promise<ResearchResult[]> {
 }
 
 /**
- * Formatea los resultados de investigación en texto legible
+ * Formatea los resultados de investigación en texto legible y conciso
  */
 function formatResearchResults(results: ResearchResult[]): string {
   if (results.length === 0) {
     return '';
   }
 
-  let formatted = '## Información de referencia de otros medios:\n\n';
+  // Limitar a los 3 resultados más relevantes para no saturar el prompt
+  const topResults = results.slice(0, 3);
+  
+  let formatted = '📰 INFORMACIÓN DE CONTEXTO (resumida de medios reconocidos):\n\n';
 
-  results.forEach((result, index) => {
-    formatted += `### Fuente ${index + 1}: ${result.source}\n`;
-    formatted += `**${result.title}**\n`;
-    formatted += `${result.snippet}\n`;
-    if (result.url) {
-      formatted += `URL: ${result.url}\n`;
-    }
-    formatted += '\n';
+  topResults.forEach((result, index) => {
+    formatted += `${index + 1}. ${result.source}: ${result.snippet}\n\n`;
   });
 
-  formatted += '\nNota: Usa esta información como contexto y referencia, pero escribe el artículo con tus propias palabras, asegurándote de verificar los hechos y mantener la objetividad periodística.\n';
+  formatted += '⚠️ IMPORTANTE: Esta información es solo CONTEXTO y REFERENCIA. Debes:\n';
+  formatted += '- Escribir el artículo con tus propias palabras\n';
+  formatted += '- Verificar y expandir la información\n';
+  formatted += '- Mantener objetividad periodística\n';
+  formatted += '- Enfocarte en el tema principal solicitado\n';
 
   return formatted;
 }

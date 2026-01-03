@@ -29,6 +29,15 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
   try {
     const { prompt, systemPrompt, model = 'gpt-4o-mini', temperature = 0.7, maxTokens = 2000 } = JSON.parse(event.body || '{}');
 
+    console.log('📥 Request recibido:', {
+      model,
+      temperature,
+      maxTokens,
+      promptLength: prompt?.length || 0,
+      systemPromptLength: systemPrompt?.length || 0,
+      hasSystemPrompt: !!systemPrompt
+    });
+
     if (!prompt) {
       return {
         statusCode: 400,
@@ -37,15 +46,18 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
       };
     }
 
-    const openaiApiKey = process.env.VITE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+    const openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
     
     if (!openaiApiKey) {
+      console.error('❌ API key no encontrada en variables de entorno');
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: 'API key de OpenAI no configurada' })
+        body: JSON.stringify({ error: 'API key de OpenAI no configurada en Netlify' })
       };
     }
+
+    console.log('✅ API key encontrada');
 
     const messages: any[] = [];
 
@@ -54,12 +66,15 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
         role: 'system',
         content: systemPrompt
       });
+      console.log('📝 System prompt agregado');
     }
 
     messages.push({
       role: 'user',
       content: prompt
     });
+
+    console.log('🚀 Llamando a OpenAI API...');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -91,13 +106,19 @@ const handler: Handler = async (event: HandlerEvent, context: HandlerContext) =>
     const generatedContent = data.choices?.[0]?.message?.content;
 
     if (!generatedContent) {
-      console.error('No se recibió contenido de OpenAI:', data);
+      console.error('❌ No se recibió contenido de OpenAI:', data);
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ error: 'No se pudo generar contenido' })
       };
     }
+
+    console.log('✅ Contenido generado exitosamente:', {
+      contentLength: generatedContent.length,
+      usage: data.usage,
+      model: data.model
+    });
 
     return {
       statusCode: 200,
