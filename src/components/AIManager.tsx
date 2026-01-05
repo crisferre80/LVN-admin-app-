@@ -248,16 +248,38 @@ export const AIManager: React.FC = () => {
 
     console.log('Usuario autenticado:', user.id);
     try {
-      const rewritePrompt = `Reescribe el siguiente artículo de noticias de manera profesional y atractiva, manteniendo la información esencial pero mejorando el lenguaje y la estructura. El artículo original es sobre: "${selectedRssArticle.title}"
+      // Evaluar la cantidad de datos disponibles para ajustar la longitud del artículo
+      const contentText = selectedRssArticle.content || '';
+      const descriptionText = selectedRssArticle.description || '';
+      const totalWords = (contentText + ' ' + descriptionText).split(/\s+/).filter(word => word.length > 0).length;
+      
+      let lengthInstruction = '';
+      if (totalWords > 500) {
+        lengthInstruction = 'Dado que el contenido original contiene abundante información detallada, genera un artículo más extenso y completo, desarrollando los puntos importantes con mayor profundidad y contexto.';
+      } else if (totalWords > 200) {
+        lengthInstruction = 'El contenido original tiene información moderada, genera un artículo de longitud similar al original, manteniendo el equilibrio entre detalle y concisión.';
+      } else {
+        lengthInstruction = 'El contenido original es limitado, genera un artículo más breve y conciso, enfocándote únicamente en los hechos verificables disponibles sin agregar especulaciones o información no presente en el original.';
+      }
+
+      const rewritePrompt = `Reescribe el siguiente artículo de noticias de manera profesional y atractiva, basándote ÚNICAMENTE en los datos reales y hechos verificables proporcionados. NO agregues información especulativa, opiniones o datos no presentes en el contenido original.
+
+El artículo original es sobre: "${selectedRssArticle.title}"
 
 Resumen original: "${selectedRssArticle.description}"
 
 Contenido completo: "${selectedRssArticle.content}"
 
-Por favor, genera:
-1. Un título más atractivo y SEO-friendly
-2. Un artículo reescrito completo con buena estructura, párrafos coherentes y lenguaje periodístico profesional
-3. Mantén la objetividad y precisión de la información original`;
+${lengthInstruction}
+
+Instrucciones específicas:
+1. **Base factual estricta**: Utiliza únicamente la información presente en el contenido original. Si algo no está mencionado, no lo incluyas.
+2. **Objetividad total**: Mantén un tono neutral y periodístico, sin interpretaciones personales.
+3. **Estructura periodística**: Organiza el contenido de manera lógica y atractiva.
+4. **Lenguaje profesional**: Mejora el estilo de redacción sin alterar los hechos.
+5. Genera un título más atractivo y SEO-friendly basado en el contenido real.
+
+Resultado esperado: Un artículo reescrito que refleja fielmente la información original, con longitud apropiada según la cantidad de datos disponibles.`;
 
       setPromptUsed(rewritePrompt);
 

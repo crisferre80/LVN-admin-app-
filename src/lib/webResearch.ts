@@ -35,19 +35,36 @@ export interface ResearchResult {
  */
 export async function searchWebForTopic(topic: string): Promise<string> {
   try {
-    // Primero intentar con Google Custom Search (si está configurada)
+    console.log('🔍 Iniciando investigación web para tema:', topic);
+    
+    // Primero intentar con NewsAPI (más confiable para noticias)
+    console.log('📰 Intentando NewsAPI...');
+    const newsApiResults = await searchWithNewsAPI(topic);
+    
+    if (newsApiResults.length > 0) {
+      console.log(`✅ NewsAPI encontró ${newsApiResults.length} resultados`);
+      return formatResearchResults(newsApiResults);
+    }
+    console.log('❌ NewsAPI no encontró resultados o no está configurado');
+
+    // Si no hay NewsAPI, usar Google Custom Search
+    console.log('🔍 Intentando Google Custom Search...');
     const googleResults = await searchWithGoogleCustomSearch(topic);
     
-    if (googleResults) {
+    if (googleResults.length > 0) {
+      console.log(`✅ Google Custom Search encontró ${googleResults.length} resultados`);
       return formatResearchResults(googleResults);
     }
+    console.log('❌ Google Custom Search no encontró resultados o no está configurado');
 
     // Si no hay Google Custom Search, usar DuckDuckGo como fallback
+    console.log('🦆 Intentando DuckDuckGo...');
     const duckDuckGoResults = await searchWithDuckDuckGo(topic);
+    console.log(`✅ DuckDuckGo encontró ${duckDuckGoResults.length} resultados`);
     return formatResearchResults(duckDuckGoResults);
 
   } catch (error) {
-    console.error('Error en investigación web:', error);
+    console.error('❌ Error en investigación web:', error);
     return '';
   }
 }
@@ -65,9 +82,9 @@ async function searchWithGoogleCustomSearch(topic: string): Promise<ResearchResu
   }
 
   try {
-    // Construir query con filtro de sitios de noticias
+    // Construir query con filtro de sitios de noticias y Argentina
     const siteQuery = NEWS_SOURCES.map(s => `site:${s}`).join(' OR ');
-    const query = `${topic} (${siteQuery})`;
+    const query = `${topic} Argentina (${siteQuery})`;
 
     const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(query)}&num=5`;
 
@@ -103,7 +120,7 @@ async function searchWithGoogleCustomSearch(topic: string): Promise<ResearchResu
 async function searchWithDuckDuckGo(topic: string): Promise<ResearchResult[]> {
   try {
     // DuckDuckGo Instant Answer API
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(topic + ' noticias')}&format=json&no_redirect=1`;
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(topic + ' Argentina noticias')}&format=json&no_redirect=1`;
 
     const response = await fetch(url);
     
@@ -184,7 +201,7 @@ export async function searchWithNewsAPI(topic: string): Promise<ResearchResult[]
   }
 
   try {
-    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic)}&language=es&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`;
+    const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(topic + ' Argentina')}&language=es&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`;
 
     const response = await fetch(url);
     

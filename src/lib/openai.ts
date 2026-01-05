@@ -17,8 +17,8 @@ export async function generateWithOpenAIEdge(
   } = {}
 ): Promise<string | null> {
   const {
-    model = 'gpt-4o-mini', // Modelo optimizado con mejor calidad
-    temperature = 0.7,
+    model = 'gpt-4o', // Modelo más avanzado para mejor fiabilidad
+    temperature = 0, // Temperatura reducida para resultados más deterministas
     maxTokens = 2000,
     systemPrompt
   } = options;
@@ -88,8 +88,8 @@ export async function generateWithOpenAI(
   }
 
   const {
-    model = 'gpt-3.5-turbo', // Modelo disponible en todos los proyectos de OpenAI
-    temperature = 0.7,
+    model = 'gpt-4o', // Modelo más avanzado para mejor fiabilidad
+    temperature = 0, // Temperatura reducida para resultados más deterministas
     maxTokens = 2000,
     systemPrompt
   } = options;

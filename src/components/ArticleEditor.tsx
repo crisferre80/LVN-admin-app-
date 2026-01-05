@@ -17,7 +17,8 @@ import {
   Clock,
   BookMarked,
   Trash2,
-  Globe
+  Globe,
+  Undo2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { GalleryManager, GalleryTemplate } from './GalleryManager';
@@ -181,6 +182,10 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
   const [generatingTitle, setGeneratingTitle] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
   const [isManualGeneration, setIsManualGeneration] = useState(false); // Bandera para rastrear generación manual
+
+  // Undo functionality states
+  const [previousFormData, setPreviousFormData] = useState<ArticleEditorState | null>(null);
+  const [canUndo, setCanUndo] = useState(false);
 
   // Media selector states
   const [showAudioSelector, setShowAudioSelector] = useState(false);
@@ -624,6 +629,10 @@ Reescribe el artículo de forma profesional y atractiva.`;
       // Convertir el contenido limpio (sin título) a HTML
       const htmlContent = markdownToHtml(cleanedContent);
 
+      // Guardar estado anterior para undo
+      setPreviousFormData(formData);
+      setCanUndo(true);
+
       setFormData(prev => ({
         ...prev,
         title: extractedTitle,
@@ -749,28 +758,29 @@ Reescribe el artículo de forma profesional y atractiva.`;
       
       if (useCustomPrompt && customPrompt.trim()) {
         // Usar prompt personalizado - más limpio y directo
-        systemPromptForAI = 'Eres un periodista profesional experto. Genera contenido de alta calidad siguiendo exactamente las instrucciones del usuario.';
+        systemPromptForAI = 'Eres un periodista profesional experto. Genera contenido de alta calidad basado ÚNICAMENTE en hechos verificables. NO inventes información, nombres o eventos que no estén en los datos proporcionados.';
         
         generationPrompt = `INSTRUCCIONES DEL USUARIO:\n${customPrompt.trim()}\n\n`;
         generationPrompt += `TEMA PRINCIPAL: ${baseTopic}\n`;
         generationPrompt += `CATEGORÍA: ${formData.category}\n\n`;
         
         if (researchData) {
-          generationPrompt += `INFORMACIÓN DE REFERENCIA (usa como contexto pero NO copies literalmente):\n${researchData}\n\n`;
+          generationPrompt += `INFORMACIÓN DE REFERENCIA VERIFICABLE (usa ÚNICAMENTE esta información, NO inventes datos adicionales):\n${researchData}\n\n`;
         }
         
-        generationPrompt += `IMPORTANTE: Concéntrate en el tema principal "${baseTopic}" y sigue las instrucciones del usuario. ${researchData ? 'Usa la información de referencia para enriquecer tu contenido pero escribe con tus propias palabras.' : ''} Genera un artículo completo y bien estructurado.`;
+        generationPrompt += `IMPORTANTE: Si no hay información de referencia, indica que no hay datos suficientes. Concéntrate en el tema principal "${baseTopic}" y genera contenido basado en conocimientos generales verificables, sin inventar detalles específicos.\n\n`;
+        generationPrompt += `Genera el artículo ahora:`;
         
       } else {
         // Usar prompt estándar con el estilo seleccionado - simplificado
-        systemPromptForAI = selectedPrompt.systemPrompt;
+        systemPromptForAI = selectedPrompt.systemPrompt + ' IMPORTANTE: Base factual estricta - usa ÚNICAMENTE información verificable, NO inventes datos, nombres o eventos.';
         
         generationPrompt = `TEMA DEL ARTÍCULO: ${baseTopic}\n`;
         generationPrompt += `CATEGORÍA: ${formData.category}\n`;
         generationPrompt += `ESTILO REQUERIDO: ${selectedPrompt.name}\n\n`;
         
         if (researchData) {
-          generationPrompt += `INFORMACIÓN DE REFERENCIA de otros medios (úsala como contexto, NO copies textualmente):\n${researchData}\n\n`;
+          generationPrompt += `INFORMACIÓN DE REFERENCIA VERIFICABLE (usa ÚNICAMENTE esta información, NO inventes datos adicionales):\n${researchData}\n\n`;
         }
         
         // Solo incluir contenido existente si realmente existe y es significativo
@@ -784,7 +794,7 @@ Reescribe el artículo de forma profesional y atractiva.`;
         generationPrompt += `- Longitud: ${selectedPrompt.minWords}-${selectedPrompt.maxWords} palabras\n`;
         generationPrompt += `- Estilo: ${selectedPrompt.description}\n`;
         generationPrompt += `- Incluye: introducción, desarrollo detallado y conclusión\n`;
-        generationPrompt += `- ${researchData ? 'Incorpora datos de la información de referencia pero con tus propias palabras\n' : 'Desarrolla el tema con información relevante y actualizada\n'}`;
+        generationPrompt += `- ${researchData ? 'Incorpora ÚNICAMENTE datos de la información de referencia, sin inventar\n' : 'Desarrolla el tema con información general verificable, sin inventar detalles específicos\n'}`;
         generationPrompt += `- Mantén el foco en el tema principal en todo momento\n`;
         generationPrompt += `- Usa un formato estructurado con párrafos bien organizados\n\n`;
         generationPrompt += `Genera el artículo ahora:`;
@@ -835,9 +845,9 @@ Reescribe el artículo de forma profesional y atractiva.`;
         case 'openai':
           try {
             const result = await generateWithOpenAIEdge(generationPrompt, {
-              model: 'gpt-4o-mini', // Modelo optimizado con mejor calidad y razonamiento
+              model: 'gpt-4o', // Modelo más avanzado para mejor fiabilidad y consistencia
               systemPrompt: systemPromptForAI,
-              temperature: 0.8, // Aumentado para más creatividad y variedad
+              temperature: 0, // Temperatura reducida para resultados más deterministas y precisos
               maxTokens: Math.min(selectedPrompt.maxWords * 5, 16000) // Más tokens para respuestas completas
             });
             if (result) {
@@ -940,6 +950,10 @@ Reescribe el artículo de forma profesional y atractiva.`;
 
       // Convertir el contenido limpio a HTML
       const finalHtmlContent = markdownToHtml(cleanedContent);
+
+      // Guardar estado anterior para undo
+      setPreviousFormData(formData);
+      setCanUndo(true);
 
       setFormData(prev => ({
         ...prev,
@@ -1090,8 +1104,9 @@ Responde ÚNICAMENTE con el título generado, sin comillas ni explicaciones adic
           case 'openai':
             try {
               const result = await generateWithOpenAIEdge(titlePrompt, {
-                model: 'gpt-4o-mini',
-                systemPrompt: 'Eres un periodista experimentado especializado en crear títulos periodísticos impactantes.',
+                model: 'gpt-4o',
+                systemPrompt: 'Eres un periodista experimentado especializado en crear títulos periodísticos impactantes, objetivos y basados en hechos verificables.',
+                temperature: 0,
                 maxTokens: 100
               });
               if (result) {
@@ -1112,6 +1127,10 @@ Responde ÚNICAMENTE con el título generado, sin comillas ni explicaciones adic
 
       // Limpiar el título generado (remover comillas si las hay)
       const cleanTitle = generatedTitle.replace(/^["']|["']$/g, '').trim();
+
+      // Guardar estado anterior para undo
+      setPreviousFormData(formData);
+      setCanUndo(true);
 
       setFormData(prev => ({
         ...prev,
@@ -1221,8 +1240,9 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
           case 'openai':
             try {
               const result = await generateWithOpenAIEdge(descriptionPrompt, {
-                model: 'gpt-4o-mini',
-                systemPrompt: 'Eres un periodista experimentado especializado en crear descripciones periodísticas concisas y atractivas.',
+                model: 'gpt-4o',
+                systemPrompt: 'Eres un periodista experimentado especializado en crear descripciones periodísticas concisas, atractivas y basadas en hechos verificables.',
+                temperature: 0,
                 maxTokens: 300
               });
               if (result) {
@@ -1249,6 +1269,10 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
         ? cleanDescription.substring(0, 297) + '...'
         : cleanDescription;
 
+      // Guardar estado anterior para undo
+      setPreviousFormData(formData);
+      setCanUndo(true);
+
       setFormData(prev => ({
         ...prev,
         description: finalDescription
@@ -1265,6 +1289,18 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
       setGeneratingDescription(false);
       setIsManualGeneration(false);
       console.log('✅ [MANUAL] Generación de descripción completada');
+    }
+  };
+
+  const undoLastAIChange = () => {
+    if (previousFormData && canUndo) {
+      setFormData(previousFormData);
+      setLocalDescription(previousFormData.description);
+      setPreviousFormData(null);
+      setCanUndo(false);
+      toast.success('Cambios de IA deshechos');
+    } else {
+      toast.error('No hay cambios para deshacer');
     }
   };
 
@@ -2547,7 +2583,27 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
               <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Acciones rápidas
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
+                {/* Web research toggle */}
+                <div className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                  <input
+                    type="checkbox"
+                    id="globalWebResearch"
+                    checked={useWebResearch}
+                    onChange={(e) => setUseWebResearch(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-2 focus:ring-indigo-100"
+                  />
+                  <label htmlFor="globalWebResearch" className="flex-1 cursor-pointer">
+                    <div className="flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-indigo-600" />
+                      <span className="text-sm font-medium text-slate-700">Investigar en la web</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Busca información actualizada en medios confiables para enriquecer el contenido generado.
+                    </p>
+                  </label>
+                </div>
+                <div className="space-y-2">
                 {isRewriteMode && (
                   <button
                     onClick={rewriteContentWithAI}
@@ -2580,6 +2636,16 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                   <Sparkles className="h-5 w-5" />
                   Generación avanzada con IA
                 </button>
+                {canUndo && (
+                  <button
+                    onClick={undoLastAIChange}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-left text-sm font-medium text-orange-700 hover:bg-orange-100"
+                  >
+                    <Undo2 className="h-5 w-5" />
+                    Deshacer último cambio de IA
+                  </button>
+                )}
+                </div>
               </div>
             </section>
 

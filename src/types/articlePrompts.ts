@@ -46,30 +46,24 @@ IMPORTANTE: Usa formato Markdown para resaltar elementos importantes:
 - **Negritas** para nombres propios, lugares y datos clave
 - *Cursivas* para énfasis sutil o citas textuales
 - Mantén el formato periodístico profesional`,
-    userPromptTemplate: `Reescribe el siguiente contenido con el estilo periodístico profesional de La Voz del Norte Diario:
+    userPromptTemplate: `Reescribe la siguiente noticia de manera objetiva, concisa y profesional, manteniendo únicamente hechos verificables del contenido original. Evita especulaciones, opiniones o información adicional no presente en el texto fuente.
 
-**Título original:** {topic}
 **Contenido a reescribir:**
 {additionalContext}
 
 **Instrucciones específicas:**
-1. **Mantén TODA la información factual** del contenido original
-2. **Conserva el enfoque y ángulo** del artículo original
-3. **Mejora el lenguaje periodístico** sin cambiar el significado
-4. **Estructura en pirámide invertida**: lo más importante primero
-5. **Agrega contexto regional** cuando sea relevante (Argentina, Santiago del Estero, regiones)
-6. **Usa lenguaje claro y accesible** para todo público
-7. **Elimina redundancias** y mejora la fluidez
-8. **Mantén el tono neutral** pero informativo
+1. Mantén la estructura de pirámide invertida: lo más importante primero
+2. Sé conciso pero completo en los hechos esenciales
+3. Usa lenguaje periodístico neutral y directo
+4. No agregues interpretaciones personales o proyecciones futuras
+5. Si el contenido es limitado, mantén la reescritura breve y factual
+6. Si no hay contenido suficiente en el contexto, indica que no hay información disponible para reescribir
 
 **Resultado esperado:**
-- Artículo reescrito con estilo profesional de periódico regional
-- Longitud similar al original (mantén la extensión aproximada)
-- Estructura periodística clásica
-- Lenguaje apropiado para un diario de referencia regional`,
+Un artículo reescrito profesional, similar al estilo de periódicos regionales, que refleja fielmente la información original sin invenciones.`,
     suggestedCategories: ['Nacionales', 'Regionales', 'Economía', 'Deportes', 'Espectaculos', 'Medio Ambiente', 'Opinión'],
-    minWords: 200,
-    maxWords: 1500,
+    minWords: 150,
+    maxWords: 400,
     tone: 'neutral-profesional',
     structure: ['Titular', 'Lead', 'Cuerpo', 'Contexto', 'Cierre']
   },
@@ -90,6 +84,10 @@ IMPORTANTE: Usa formato Markdown para resaltar elementos importantes:
 - Mantén el formato natural y no abuses del resaltado`,
     userPromptTemplate: `Redacta una noticia objetiva sobre: {topic}
 
+IMPORTANTE: Si se proporciona información adicional en el contexto siguiente, úsala ÚNICAMENTE como fuente de hechos verificables. NO inventes, agregues o especules información adicional no presente en el contexto proporcionado.
+
+{additionalContext}
+
 IMPORTANTE: Responde ÚNICAMENTE con el artículo en formato Markdown, sin introducción ni comentarios adicionales. El formato debe ser:
 
 **Título Atractivo**
@@ -105,15 +103,15 @@ Estructura requerida en el cuerpo:
 4. Cierre (información complementaria o consecuencias)
 
 Características:
-- Longitud: 300-500 palabras
+- Longitud: 150-400 palabras
 - Tono: Neutral y objetivo
 - Tiempo verbal: Preferentemente pretérito perfecto
 - Sin adjetivos calificativos ni opiniones
 
 {additionalContext}`,
     suggestedCategories: ['Nacionales', 'Regionales', 'Internacionales', 'Economía'],
-    minWords: 300,
-    maxWords: 500,
+    minWords: 150,
+    maxWords: 400,
     tone: 'neutral-formal',
     structure: ['Titular', 'Lead', 'Cuerpo', 'Contexto', 'Cierre']
   },
@@ -134,6 +132,10 @@ IMPORTANTE: Usa formato Markdown para resaltar elementos importantes:
 - Mantén el formato natural y periodístico`,
     userPromptTemplate: `Elabora un reportaje completo sobre: {topic}
 
+IMPORTANTE: Si se proporciona información adicional en el contexto siguiente, úsala ÚNICAMENTE como fuente de hechos verificables. NO inventes testimonios, datos, nombres o eventos que no estén explícitamente mencionados en el contexto. Si no hay información suficiente, indica que se requiere más investigación.
+
+{additionalContext}
+
 IMPORTANTE: Responde ÚNICAMENTE con el artículo en formato Markdown, sin introducción ni comentarios adicionales. El formato debe ser:
 
 **Título Impactante**
@@ -152,7 +154,7 @@ Estructura requerida en el cuerpo:
 7. Cierre reflexivo (conclusión o apertura a futuro)
 
 Características:
-- Longitud: 800-1200 palabras
+- Longitud: 400-700 palabras
 - Tono: Narrativo pero riguroso
 - Incluye datos estadísticos relevantes
 - Testimonios en primera persona entre comillas
@@ -160,8 +162,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Nacionales', 'Medio Ambiente', 'Economía', 'Regionales'],
-    minWords: 800,
-    maxWords: 1200,
+    minWords: 400,
+    maxWords: 700,
     tone: 'narrativo-investigativo',
     structure: ['Título', 'Entrada', 'Contexto', 'Desarrollo', 'Testimonios', 'Análisis', 'Cierre']
   },
@@ -199,7 +201,7 @@ Estructura requerida en el cuerpo:
 6. Reflexión o cierre circular (vuelve al inicio o deja mensaje)
 
 Características:
-- Longitud: 600-900 palabras
+- Longitud: 300-600 palabras
 - Tono: Narrativo-literario pero veraz
 - Uso de presente histórico para vivacidad
 - Descripciones sensoriales detalladas
@@ -207,8 +209,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Regionales', 'Deportes', 'Espectaculos', 'Nacionales'],
-    minWords: 600,
-    maxWords: 900,
+    minWords: 300,
+    maxWords: 600,
     tone: 'narrativo-literario',
     structure: ['Título', 'Escena inicial', 'Desarrollo cronológico', 'Descripciones', 'Cierre']
   },
@@ -240,7 +242,7 @@ Estructura requerida en el cuerpo:
 5. Conclusión con llamado a la reflexión o acción
 
 Características:
-- Longitud: 500-700 palabras
+- Longitud: 300-500 palabras
 - Tono: Asertivo pero respetuoso
 - Primera persona permitida (yo opino, considero)
 - Datos y referencias que respalden argumentos
@@ -248,8 +250,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Opinión', 'Economía', 'Medio Ambiente', 'Nacionales'],
-    minWords: 500,
-    maxWords: 700,
+    minWords: 300,
+    maxWords: 500,
     tone: 'persuasivo-personal',
     structure: ['Título', 'Tesis', 'Argumentos', 'Refutación', 'Conclusión']
   },
@@ -282,7 +284,7 @@ Estructura requerida en el cuerpo:
 6. Cierre con reflexión final del entrevistado
 
 Características:
-- Longitud: 700-1000 palabras
+- Longitud: 400-700 palabras
 - Formato: P: pregunta / R: respuesta
 - Incluye acotaciones descriptivas en cursiva
 - Respuestas en primera persona
@@ -290,8 +292,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Nacionales', 'Deportes', 'Espectaculos', 'Economía'],
-    minWords: 700,
-    maxWords: 1000,
+    minWords: 400,
+    maxWords: 700,
     tone: 'conversacional-formal',
     structure: ['Presentación', 'Contexto', 'Preguntas', 'Respuestas', 'Cierre']
   },
@@ -326,7 +328,7 @@ Estructura requerida en el cuerpo:
 8. Conclusiones e implicaciones
 
 Características:
-- Longitud: 900-1500 palabras
+- Longitud: 500-800 palabras
 - Tono: Riguroso y objetivo
 - Abundancia de datos verificables
 - Citas textuales de fuentes
@@ -335,8 +337,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Nacionales', 'Economía', 'Medio Ambiente'],
-    minWords: 900,
-    maxWords: 1500,
+    minWords: 500,
+    maxWords: 800,
     tone: 'investigativo-riguroso',
     structure: ['Revelación', 'Metodología', 'Hallazgos', 'Evidencias', 'Reacciones', 'Contexto', 'Conclusiones']
   },
@@ -370,7 +372,7 @@ Estructura requerida en el cuerpo:
 7. Conclusiones y recomendaciones
 
 Características:
-- Longitud: 1000-1500 palabras
+- Longitud: 600-900 palabras
 - Tono: Analítico y educativo
 - Incluye datos estadísticos relevantes
 - Subsecciones claramente marcadas
@@ -379,8 +381,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Economía', 'Medio Ambiente', 'Nacionales'],
-    minWords: 1000,
-    maxWords: 1500,
+    minWords: 600,
+    maxWords: 900,
     tone: 'analítico-educativo',
     structure: ['Resumen', 'Panorama', 'Antecedentes', 'Análisis', 'Comparativa', 'Expertos', 'Proyecciones', 'Conclusiones']
   },
@@ -457,7 +459,7 @@ Estructura requerida en el cuerpo:
 6. Conclusiones basadas estrictamente en evidencia
 
 Características:
-- Longitud: 600-900 palabras
+- Longitud: 400-600 palabras
 - Tono: Analítico y objetivo
 - Enfoque: 80% datos, 20% interpretación
 - Incluye gráficos/tablas descriptivas en el texto
@@ -466,8 +468,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Economía', 'Medio Ambiente', 'Nacionales', 'Regionales'],
-    minWords: 600,
-    maxWords: 900,
+    minWords: 400,
+    maxWords: 600,
     tone: 'analítico-neutral',
     structure: ['Título', 'Contexto estadístico', 'Análisis cuantitativo', 'Interpretación', 'Conclusiones']
   },
@@ -505,7 +507,7 @@ Estructura requerida en el cuerpo:
 6. Llamado a la acción para mayor justicia social
 
 Características:
-- Longitud: 700-1000 palabras
+- Longitud: 400-700 palabras
 - Tono: Crítico constructivo y comprometido
 - Enfoque: Derechos humanos, equidad e inclusión social
 - Incluye testimonios o casos concretos cuando sea relevante
@@ -514,8 +516,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Nacionales', 'Medio Ambiente', 'Economía', 'Regionales', 'Opinión'],
-    minWords: 700,
-    maxWords: 1000,
+    minWords: 400,
+    maxWords: 700,
     tone: 'crítico-social',
     structure: ['Título', 'Contexto social', 'Análisis crítico', 'Alternativas', 'Llamado a acción']
   },
@@ -553,7 +555,7 @@ Estructura requerida en el cuerpo:
 6. Visión de futuro nacional hacia dónde debería ir el país
 
 Características:
-- Longitud: 800-1100 palabras
+- Longitud: 500-800 palabras
 - Tono: Crítico patriótico y democrático
 - Enfoque: Soberanía nacional, democracia participativa, interés colectivo
 - Incluye referencias al contexto argentino y latinoamericano
@@ -562,8 +564,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Nacionales', 'Economía', 'Regionales', 'Opinión'],
-    minWords: 800,
-    maxWords: 1100,
+    minWords: 500,
+    maxWords: 800,
     tone: 'crítico-nacional-popular',
     structure: ['Título', 'Contexto nacional', 'Análisis político', 'Propuestas democráticas', 'Visión nacional']
   },
@@ -601,7 +603,7 @@ Estructura requerida en el cuerpo:
 6. Proyección de crecimiento económico a mediano/largo plazo
 
 Características:
-- Longitud: 700-1000 palabras
+- Longitud: 400-700 palabras
 - Tono: Analítico y propositivo desde la perspectiva liberal
 - Enfoque: Mercados eficientes, emprendimiento, reducción de intervenciones
 - Incluye conceptos económicos como competencia, incentivos, eficiencia
@@ -610,8 +612,8 @@ Características:
 
 {additionalContext}`,
     suggestedCategories: ['Economía', 'Nacionales', 'Regionales', 'Opinión'],
-    minWords: 700,
-    maxWords: 1000,
+    minWords: 400,
+    maxWords: 700,
     tone: 'liberal-económico',
     structure: ['Título', 'Contexto económico', 'Análisis liberal', 'Propuestas de mercado', 'Proyección de crecimiento']
   }
