@@ -168,6 +168,12 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
   const [useWebResearch, setUseWebResearch] = useState(false);
   const [showTemplateManager, setShowTemplateManager] = useState(false);
 
+  // Web Research Test states
+  const [showWebResearchTest, setShowWebResearchTest] = useState(false);
+  const [testSearchTopic, setTestSearchTopic] = useState('');
+  const [testSearchResults, setTestSearchResults] = useState<string>('');
+  const [testingWebResearch, setTestingWebResearch] = useState(false);
+
   // Image generation states
   const [generatingImage, setGeneratingImage] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
@@ -521,12 +527,31 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
     setGenerating(true);
 
     try {
+      // INVESTIGACIÓN WEB: Obtener información actualizada del tema usando la imagen como fuente
+      let researchData = '';
+      const searchTopic = formData.title.trim() || 'tema general';
+      toast('🔍 Investigando fuentes originales para reescritura...', { icon: '🔍' });
+      
+      try {
+        researchData = await searchWebForTopic(searchTopic, formData.description, formData.image_url);
+        if (researchData) {
+          console.log('✅ Información de investigación obtenida para reescritura:', researchData.length, 'caracteres');
+          toast.success('Información verificada obtenida de fuentes confiables');
+        } else {
+          console.warn('⚠️ No se obtuvo información de investigación para reescritura');
+          toast('No se encontró información específica, reescribiendo con conocimientos generales', { icon: '⚠️' });
+        }
+      } catch (error) {
+        console.error('Error en investigación web para reescritura:', error);
+        toast('Error en investigación web, continuando con conocimientos generales', { icon: '⚠️' });
+      }
+
       let rewrittenContent = '';
       let provider = '';
       const openrouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
       
-      // Crear prompt para reescritura
-      const rewritePrompt = `Reescribe el siguiente artículo mejorando su calidad, claridad y estilo periodístico. Mantén el mismo tema y enfoque principal.
+      // Crear prompt para reescritura con información de investigación
+      let rewritePrompt = `Reescribe el siguiente artículo mejorando su calidad, claridad y estilo periodístico. Mantén el mismo tema y enfoque principal.
 
 Título: ${formData.title}
 Categoría: ${formData.category}
@@ -535,6 +560,11 @@ Contenido original:
 ${formData.content.replace(/<[^>]*>/g, '')}
 
 Reescribe el artículo de forma profesional y atractiva.`;
+
+      // Agregar información de investigación si está disponible
+      if (researchData) {
+        rewritePrompt += `\n\n${researchData}\n\nIMPORTANTE: Usa la información verificada de arriba como base para la reescritura, especialmente si proviene de la fuente original del artículo.`;
+      }
       
       // Usar el orden de fallback configurado
       for (const providerName of aiConfig.fallbackOrder) {
@@ -701,6 +731,37 @@ Reescribe el artículo de forma profesional y atractiva.`;
     }
   };
 
+  const testWebResearch = async () => {
+    if (!testSearchTopic.trim()) {
+      toast.error('Ingresa un tema para buscar');
+      return;
+    }
+
+    setTestingWebResearch(true);
+    setTestSearchResults('');
+
+    try {
+      console.log('🧪 Probando investigación web para:', testSearchTopic);
+      const results = await searchWebForTopic(testSearchTopic);
+      
+      if (results) {
+        setTestSearchResults(results);
+        console.log('✅ Resultados de prueba obtenidos:', results.length, 'caracteres');
+        toast.success('Búsqueda completada exitosamente');
+      } else {
+        setTestSearchResults('No se encontraron resultados de investigación web.');
+        console.warn('⚠️ No se encontraron resultados en la prueba');
+        toast('No se encontraron resultados', { icon: '⚠️' });
+      }
+    } catch (error) {
+      console.error('❌ Error en prueba de investigación web:', error);
+      setTestSearchResults(`Error: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      toast.error('Error al probar la búsqueda web');
+    } finally {
+      setTestingWebResearch(false);
+    }
+  };
+
   const generateContentWithAI = async () => {
     // Validaciones: necesitamos tema o prompt personalizado o contenido existente
     if (!customTopic.trim() && !customPrompt.trim() && !formData.content?.trim()) {
@@ -723,21 +784,21 @@ Reescribe el artículo de forma profesional y atractiva.`;
     try {
       let researchData = '';
       
-      // Si está habilitada la investigación web y hay un tema
-      if (useWebResearch && customTopic.trim()) {
-        toast('🔍 Investigando en la web...', { icon: '🔍' });
-        try {
-          researchData = await searchWebForTopic(customTopic);
-          if (researchData) {
-            console.log('✅ Información de investigación obtenida:', researchData.length, 'caracteres');
-            toast.success('Información de otros medios obtenida');
-          } else {
-            console.warn('⚠️ No se obtuvo información de investigación web');
-          }
-        } catch (error) {
-          console.error('Error en investigación web:', error);
-          toast('No se pudo completar la investigación web, continuando sin ella', { icon: '⚠️' });
+      // SIEMPRE investigar en la web para obtener información factual (como ChatGPT)
+      const searchTopic = customTopic.trim() || formData.title || 'tema general';
+      toast('🔍 Investigando en la web para obtener información factual...', { icon: '🔍' });
+      try {
+        researchData = await searchWebForTopic(searchTopic);
+        if (researchData) {
+          console.log('✅ Información de investigación obtenida:', researchData.length, 'caracteres');
+          toast.success('Información verificada obtenida de fuentes confiables');
+        } else {
+          console.warn('⚠️ No se obtuvo información de investigación web');
+          toast('No se encontró información específica, generando con conocimientos generales', { icon: '⚠️' });
         }
+      } catch (error) {
+        console.error('Error en investigación web:', error);
+        toast('Error en investigación web, continuando con conocimientos generales', { icon: '⚠️' });
       }
 
       const selectedPrompt = JOURNALISTIC_PROMPTS[selectedStyle];
@@ -765,22 +826,30 @@ Reescribe el artículo de forma profesional y atractiva.`;
         generationPrompt += `CATEGORÍA: ${formData.category}\n\n`;
         
         if (researchData) {
-          generationPrompt += `INFORMACIÓN DE REFERENCIA VERIFICABLE (usa ÚNICAMENTE esta información, NO inventes datos adicionales):\n${researchData}\n\n`;
+          generationPrompt += `INFORMACIÓN VERIFICABLE DE FUENTES CONFIABLES (USA ÚNICAMENTE ESTA INFORMACIÓN):\n${researchData}\n\n`;
+          generationPrompt += `REGLAS CRÍTICAS: NO inventes nombres, personas, fechas, eventos o datos que no estén explícitamente en la información proporcionada. Si necesitas datos específicos que no están disponibles, indica claramente que no hay información suficiente sobre ese aspecto.\n\n`;
         }
         
-        generationPrompt += `IMPORTANTE: Si no hay información de referencia, indica que no hay datos suficientes. Concéntrate en el tema principal "${baseTopic}" y genera contenido basado en conocimientos generales verificables, sin inventar detalles específicos.\n\n`;
+        generationPrompt += `IMPORTANTE: Si no hay información de referencia verificada, genera contenido genérico basado en conocimientos generales, pero evita cualquier detalle específico inventado.\n\n`;
         generationPrompt += `Genera el artículo ahora:`;
         
       } else {
         // Usar prompt estándar con el estilo seleccionado - simplificado
-        systemPromptForAI = selectedPrompt.systemPrompt + ' IMPORTANTE: Base factual estricta - usa ÚNICAMENTE información verificable, NO inventes datos, nombres o eventos.';
+        systemPromptForAI = selectedPrompt.systemPrompt + ' CRÍTICO: Usa ÚNICAMENTE información verificable del contexto proporcionado. NO inventes nombres, personas, eventos, fechas o datos específicos. Si no hay información suficiente, genera contenido genérico pero factual.';
         
         generationPrompt = `TEMA DEL ARTÍCULO: ${baseTopic}\n`;
         generationPrompt += `CATEGORÍA: ${formData.category}\n`;
         generationPrompt += `ESTILO REQUERIDO: ${selectedPrompt.name}\n\n`;
         
         if (researchData) {
-          generationPrompt += `INFORMACIÓN DE REFERENCIA VERIFICABLE (usa ÚNICAMENTE esta información, NO inventes datos adicionales):\n${researchData}\n\n`;
+          generationPrompt += `INFORMACIÓN VERIFICABLE DE FUENTES CONFIABLES (USA ÚNICAMENTE ESTA INFORMACIÓN):\n${researchData}\n\n`;
+          generationPrompt += `REGLAS ESTRICTAS - NO VIOLACIÓN PERMITIDA:\n`;
+          generationPrompt += `- NO inventes nombres de personas, lugares específicos, fechas o eventos\n`;
+          generationPrompt += `- NO agregues información que no esté explícitamente en las fuentes\n`;
+          generationPrompt += `- Si necesitas datos específicos que no están disponibles, usa ejemplos genéricos o indica "sin información específica disponible"\n`;
+          generationPrompt += `- Mantén toda la información basada en hechos verificables de las fuentes proporcionadas\n\n`;
+        } else {
+          generationPrompt += `NOTA: No hay información específica verificada disponible. Genera contenido basado en conocimientos generales del tema, pero evita cualquier detalle específico inventado.\n\n`;
         }
         
         // Solo incluir contenido existente si realmente existe y es significativo
@@ -793,8 +862,8 @@ Reescribe el artículo de forma profesional y atractiva.`;
         generationPrompt += `- Escribe un artículo periodístico completo sobre "${baseTopic}"\n`;
         generationPrompt += `- Longitud: ${selectedPrompt.minWords}-${selectedPrompt.maxWords} palabras\n`;
         generationPrompt += `- Estilo: ${selectedPrompt.description}\n`;
-        generationPrompt += `- Incluye: introducción, desarrollo detallado y conclusión\n`;
-        generationPrompt += `- ${researchData ? 'Incorpora ÚNICAMENTE datos de la información de referencia, sin inventar\n' : 'Desarrolla el tema con información general verificable, sin inventar detalles específicos\n'}`;
+        generationPrompt += `- ${researchData ? 'Incorpora ÚNICAMENTE datos verificados de las fuentes proporcionadas, sin invenciones ni especulaciones' : 'Desarrolla el tema con información general verificable, sin detalles específicos inventados'}\n`;
+        generationPrompt += `- Si no tienes información específica sobre un aspecto, dilo explícitamente\n`;
         generationPrompt += `- Mantén el foco en el tema principal en todo momento\n`;
         generationPrompt += `- Usa un formato estructurado con párrafos bien organizados\n\n`;
         generationPrompt += `Genera el artículo ahora:`;
@@ -2376,6 +2445,80 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                     </div>
                   </div>
                 )}
+
+                {/* Web Research Test Component */}
+                <div className="mb-4 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-blue-50 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
+                      <Globe className="h-4 w-4 text-indigo-600" />
+                      Probar Investigación Web
+                    </h4>
+                    <button
+                      onClick={() => setShowWebResearchTest(!showWebResearchTest)}
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+                    >
+                      {showWebResearchTest ? 'Ocultar' : 'Mostrar'}
+                    </button>
+                  </div>
+
+                  {showWebResearchTest && (
+                    <div className="space-y-3">
+                      <div>
+                        <input
+                          type="text"
+                          value={testSearchTopic}
+                          onChange={(e) => setTestSearchTopic(e.target.value)}
+                          placeholder="Ingresa un tema para buscar (ej: inflación Argentina 2024)"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              testWebResearch();
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={testWebResearch}
+                          disabled={testingWebResearch || !testSearchTopic.trim()}
+                          className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {testingWebResearch ? (
+                            <>
+                              <Loader className="h-4 w-4 animate-spin" />
+                              Buscando...
+                            </>
+                          ) : (
+                            <>
+                              <Globe className="h-4 w-4" />
+                              Probar búsqueda
+                            </>
+                          )}
+                        </button>
+                        {testSearchResults && (
+                          <button
+                            onClick={() => setTestSearchResults('')}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                          >
+                            Limpiar
+                          </button>
+                        )}
+                      </div>
+                      {testSearchResults && (
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                          <h5 className="mb-2 text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                            Resultados de la búsqueda:
+                          </h5>
+                          <div className="max-h-60 overflow-y-auto">
+                            <pre className="whitespace-pre-wrap text-xs text-slate-700 font-mono">
+                              {testSearchResults}
+                            </pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <button
                   onClick={generateContentWithAI}
