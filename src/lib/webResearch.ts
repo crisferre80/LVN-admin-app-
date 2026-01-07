@@ -282,10 +282,11 @@ export async function searchWebForTopic(topic: string, description?: string, ima
     }
     
     // 2. Determinar si es tema local y usar fuentes apropiadas
-    const isLocalTopic = isLocalSantiagoTopic(topic) || 
-                        (description && extractUrlsFromDescription(description, imageUrl).length > 0);
+    const urlsFromDesc = description ? extractUrlsFromDescription(description, imageUrl) : [];
+    const hasUrls = urlsFromDesc.length > 0;
+    const isLocalTopic = isLocalSantiagoTopic(topic) || hasUrls;
     console.log('🏠 ¿Es tema local de Santiago del Estero?:', isLocalTopic, 
-               extractUrlsFromDescription(description || '', imageUrl).length > 0 ? '(detectado por URLs)' : '(detectado por keywords)');
+               hasUrls ? '(detectado por URLs)' : '(detectado por keywords)');
     
     // Usar Google Custom Search como primera opción
     if (hasGoogleSearch) {
