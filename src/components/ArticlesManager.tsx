@@ -621,12 +621,6 @@ export function ArticlesManager({ onSectionChange }: { onSectionChange: (section
   };
 
   const updateArticleCategory = async (article: ExtendedArticle, newCategory: string) => {
-    // Optimistic update: actualizar el estado local inmediatamente
-    setAiArticles(prev => prev.map(a =>
-      a.id === article.id
-        ? { ...a, category: newCategory }
-        : a
-    ));
 
     try {
       const tableName = getTableName(article);
@@ -638,6 +632,9 @@ export function ArticlesManager({ onSectionChange }: { onSectionChange: (section
       if (error) throw error;
 
       toast.success('Categoría actualizada exitosamente');
+      
+      // Recargar artículos para asegurar que el cambio se refleje en la UI
+      await loadArticles();
       // Emitir evento para sincronizar UI en otras partes de la app (cards, detail, carrusel, etc.)
       try {
         const detail = { id: article.id, newCategory } as any;
@@ -648,15 +645,8 @@ export function ArticlesManager({ onSectionChange }: { onSectionChange: (section
       // Evento legacy para compatibilidad con listeners existentes
       window.dispatchEvent(new CustomEvent('categoriesUpdated'));
     } catch (error) {
-      console.error('Error updating article category:', error);
+      console.error('❌ Error updating article category:', error);
       toast.error('Error al cambiar la categoría del artículo');
-
-      // Revertir el cambio optimista en caso de error
-      setAiArticles(prev => prev.map(a =>
-        a.id === article.id
-          ? { ...a, category: article.category }
-          : a
-      ));
     }
   };
 

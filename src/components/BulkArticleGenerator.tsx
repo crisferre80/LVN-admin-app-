@@ -7,6 +7,7 @@ import { markdownToHtml, cleanAIGeneratedContent } from '../lib/markdownUtils';
 import { generateWithOpenRouter } from '../lib/openRouter';
 import { generateWithOpenAI } from '../lib/openai';
 import { enforceGoogleAIRateLimit } from '../lib/googleAI';
+import { manageFeaturedStatus } from '../lib/articleUtils';
 import toast from 'react-hot-toast';
 
 interface BulkGenerationConfig {
@@ -293,6 +294,7 @@ export function BulkArticleGenerator({ onComplete }: { onComplete?: () => void }
             summary: description,
             category,
             status: 'draft',
+            is_featured: true, // Marcar como destacado automáticamente
             created_at: new Date().toISOString()
           }])
           .select('id')
@@ -336,6 +338,11 @@ export function BulkArticleGenerator({ onComplete }: { onComplete?: () => void }
           await new Promise(resolve => setTimeout(resolve, 10000)); // 10 segundos extra
         }
       }
+    }
+
+    // Gestionar estado destacado después de generar todos los artículos
+    if (successCount > 0) {
+      await manageFeaturedStatus();
     }
 
     setIsGenerating(false);

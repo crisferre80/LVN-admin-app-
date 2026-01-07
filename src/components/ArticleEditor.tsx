@@ -12,8 +12,6 @@ import {
   FolderOpen,
   Brain,
   Music,
-  Wifi,
-  WifiOff,
   Clock,
   BookMarked,
   Trash2,
@@ -27,12 +25,14 @@ import { AudioPlayer } from './AudioPlayer';
 import { AudioSelector } from './AudioSelector';
 import { JOURNALISTIC_PROMPTS, JournalisticStyle } from '../types/articlePrompts';
 import { generateArticleImage } from '../lib/googleAI';
+import { searchGoogleImages } from '../lib/imageGeneration';
 import { useAIModelConfig } from '../hooks/useAIModelConfig';
 import { markdownToHtml } from '../lib/markdownUtils';
 import { rewriteWithOpenRouter, generateContentWithOpenRouter, generateWithOpenRouter } from '../lib/openRouter';
 import { rewriteWithOpenAI, generateWithOpenAIEdge } from '../lib/openai';
 import { rewriteWithPuter, generateContentWithPuter, generateWithPuter } from '../lib/puter';
 import { searchWebForTopic } from '../lib/webResearch';
+import { manageFeaturedStatus } from '../lib/articleUtils';
 import compress from 'browser-image-compression';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/AuthContext';
@@ -165,7 +165,10 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
   const [savedTemplates, setSavedTemplates] = useState<Array<{id: string, name: string, prompt: string}>>([]);
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [templateName, setTemplateName] = useState('');
-  const [useWebResearch, setUseWebResearch] = useState(false);
+  const [useWebResearch, setUseWebResearch] = useState(() => {
+    const saved = localStorage.getItem('useWebResearch');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [showTemplateManager, setShowTemplateManager] = useState(false);
 
   // Web Research Test states
@@ -182,6 +185,13 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
   const [advancedImagePrompt, setAdvancedImagePrompt] = useState('');
   const [useUploadedImage, setUseUploadedImage] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+
+  // Google Images Search states
+  const [showGoogleImageSearch, setShowGoogleImageSearch] = useState(false);
+  const [googleImageQuery, setGoogleImageQuery] = useState('');
+  const [googleImages, setGoogleImages] = useState<{ url: string; title: string; thumbnail: string }[]>([]);
+  const [searchingGoogleImages, setSearchingGoogleImages] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Title and description generation states
@@ -408,6 +418,11 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
       connectionCheckInProgressRef.current = false;
     };
   }, [autoSaveSettings.interval, autoSaveSettings.enabled]);
+
+  // Persistir configuración de búsqueda web
+  useEffect(() => {
+    localStorage.setItem('useWebResearch', JSON.stringify(useWebResearch));
+  }, [useWebResearch]);
 
   // Auto-guardado al navegar
   useEffect(() => {
@@ -1065,7 +1080,7 @@ Reescribe el artículo de forma profesional y atractiva.`;
         setFormData(prev => ({ ...prev, image_url: result }));
         toast.success('Imagen generada exitosamente');
       } else {
-        toast.error('No se pudo generar la imagen. Se intentó con múltiples proveedores (Gemini, Pexels, Banana) pero todos fallaron. Si acabas de generar varias imágenes, espera unos minutos antes de intentar nuevamente.');
+        toast.error('No se pudo generar la imagen. Se intentó con múltiples proveedores (Gemini, Pexels, Banana, Google Images) pero todos fallaron. Si acabas de generar varias imágenes, espera unos minutos antes de intentar nuevamente.');
       }
     } catch (error: any) {
       console.error('Error generating image:', error);
@@ -1079,6 +1094,52 @@ Reescribe el artículo de forma profesional y atractiva.`;
     } finally {
       setGeneratingImage(false);
     }
+  };
+
+  const searchGoogleImagesHandler = async () => {
+    if (!googleImageQuery.trim()) {
+      toast.error('Ingresa una consulta para buscar imágenes');
+      return;
+    }
+
+    setSearchingGoogleImages(true);
+    try {
+      const results = await searchGoogleImages(googleImageQuery, 12);
+      setGoogleImages(results);
+
+      if (results.length === 0) {
+        toast.error('No se encontraron imágenes para esa consulta');
+      } else {
+        toast.success(`Se encontraron ${results.length} imágenes`);
+      }
+    } catch (error: any) {
+      console.error('Error searching Google Images:', error);
+
+      // Mostrar mensaje de error más específico
+      const errorMessage = error?.message || 'Error desconocido al buscar imágenes';
+      toast.error(errorMessage, {
+        duration: 6000, // Mostrar por más tiempo para errores de configuración
+      });
+
+      // Si es un error de configuración, mostrar información adicional
+      if (errorMessage.includes('no está configurado')) {
+        setTimeout(() => {
+          toast.error('Configura VITE_GOOGLE_SEARCH_API_KEY y VITE_GOOGLE_SEARCH_ENGINE_ID en tu archivo .env', {
+            duration: 8000,
+          });
+        }, 1000);
+      }
+    } finally {
+      setSearchingGoogleImages(false);
+    }
+  };
+
+  const selectGoogleImage = (imageUrl: string) => {
+    setFormData(prev => ({ ...prev, image_url: imageUrl }));
+    setShowGoogleImageSearch(false);
+    setGoogleImageQuery('');
+    setGoogleImages([]);
+    toast.success('Imagen seleccionada exitosamente');
   };
 
   const generateTitleWithAI = async () => {
@@ -1442,7 +1503,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
         setFormData(prev => ({ ...prev, image_url: imageResult }));
         toast.success(`Imagen generada exitosamente con ${provider} AI`);
       } else {
-        toast.error('No se pudo generar la imagen. Se intentó con múltiples proveedores (Gemini, Pexels, Banana) pero todos fallaron. Si acabas de generar varias imágenes, espera unos minutos antes de intentar nuevamente.');
+        toast.error('No se pudo generar la imagen. Se intentó con múltiples proveedores (Gemini, Pexels, Banana, Google Images) pero todos fallaron. Si acabas de generar varias imágenes, espera unos minutos antes de intentar nuevamente.');
       }
 
       setShowAdvancedImageGen(false);
@@ -1919,6 +1980,11 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
       if (formData.image_url?.trim()) articleData.image_url = formData.image_url.trim();
       if (formData.audio_url?.trim()) articleData.audio_url = formData.audio_url.trim();
       
+      // Para artículos nuevos, marcar automáticamente como destacados
+      if (!isEditing) {
+        articleData.is_featured = true;
+      }
+      
       // Manejar fuente RSS - siempre convertir a artículo propio al guardar/publicar
       if (originalTable === 'articles' || originalTable === 'local_news') {
         // Artículos RSS migrados se convierten en propios
@@ -2068,6 +2134,9 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
         }
         console.log('✅ Artículo creado:', insertResult.data[0].id);
         toast.success(publish ? 'Artículo creado y publicado exitosamente' : 'Artículo creado exitosamente');
+
+        // Gestionar estado destacado para artículos nuevos
+        await manageFeaturedStatus();
       }
 
       // Limpiar estado de cambios no guardados
@@ -2125,7 +2194,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
       {/* Header */}
       <header className={onExit ? "border-b border-slate-200 bg-white shadow-sm" : "sticky top-0 z-40 border-b border-slate-200 bg-white shadow-sm"}>
         <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => {
@@ -2151,7 +2220,7 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => handleSave(false)}
                 disabled={saving}
@@ -2171,28 +2240,6 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
             </div>
             {/* Indicadores de conexión y auto-guardado */}
             <div className="flex items-center gap-3">
-              {/* Indicador de conexión */}
-              <div className="flex items-center gap-2">
-                {connectionStatus === 'checking' && (
-                  <div className="flex items-center gap-1 text-xs text-slate-500">
-                    <Loader className="h-3 w-3 animate-spin" />
-                    Verificando...
-                  </div>
-                )}
-                {connectionStatus === 'connected' && (
-                  <div className="flex items-center gap-1 text-xs text-green-600">
-                    <Wifi className="h-3 w-3" />
-                    Conectado
-                  </div>
-                )}
-                {connectionStatus === 'disconnected' && (
-                  <div className="flex items-center gap-1 text-xs text-red-600">
-                    <WifiOff className="h-3 w-3" />
-                    Desconectado
-                  </div>
-                )}
-              </div>
-
               {/* Indicador de auto-guardado */}
               {autoSaveSettings.enabled && (
                 <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -2779,6 +2826,13 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                   <Sparkles className="h-5 w-5" />
                   Generación avanzada con IA
                 </button>
+                <button
+                  onClick={() => setShowGoogleImageSearch(true)}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-left text-sm font-medium text-red-700 hover:bg-red-100"
+                >
+                  <ImageIcon className="h-5 w-5" />
+                  Buscar imágenes en Google
+                </button>
                 {canUndo && (
                   <button
                     onClick={undoLastAIChange}
@@ -3073,6 +3127,95 @@ Responde ÚNICAMENTE con la descripción generada, sin explicaciones adicionales
                       </span>
                     )}
                   </button>
+                </div>
+              </section>
+            )}
+
+            {/* Google Images Search */}
+            {showGoogleImageSearch && (
+              <section className="rounded-3xl border border-red-200 bg-gradient-to-br from-red-50 to-pink-50 p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Buscar imágenes en Google
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowGoogleImageSearch(false);
+                      setGoogleImageQuery('');
+                      setGoogleImages([]);
+                    }}
+                    className="text-sm text-slate-500 hover:text-slate-700"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium text-slate-700">
+                      Consulta de búsqueda
+                    </label>
+                    <div className="mt-1 flex gap-2">
+                      <input
+                        type="text"
+                        value={googleImageQuery}
+                        onChange={(e) => setGoogleImageQuery(e.target.value)}
+                        placeholder="Ej: terremoto Santiago del Estero, protestas sociales Argentina..."
+                        className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+                        onKeyPress={(e) => e.key === 'Enter' && searchGoogleImagesHandler()}
+                      />
+                      <button
+                        onClick={searchGoogleImagesHandler}
+                        disabled={searchingGoogleImages || !googleImageQuery.trim()}
+                        className="rounded-2xl bg-red-600 px-6 py-2.5 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                      >
+                        {searchingGoogleImages ? (
+                          <Loader className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Buscar'
+                        )}
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Busca imágenes reales de Google Images. Útil para encontrar fotos de eventos actuales o imágenes específicas.
+                    </p>
+                  </div>
+
+                  {googleImages.length > 0 && (
+                    <div>
+                      <h4 className="mb-3 text-sm font-medium text-slate-700">
+                        Resultados ({googleImages.length} imágenes)
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                        {googleImages.map((image, index) => (
+                          <div
+                            key={index}
+                            className="group relative cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white transition hover:shadow-md"
+                            onClick={() => selectGoogleImage(image.url)}
+                          >
+                            <img
+                              src={image.thumbnail}
+                              alt={image.title}
+                              className="aspect-square w-full object-cover"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 transition group-hover:bg-opacity-20" />
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                              <p className="text-xs text-white line-clamp-2">
+                                {image.title}
+                              </p>
+                            </div>
+                            <div className="absolute top-2 right-2 rounded-full bg-red-500 p-1 opacity-0 transition group-hover:opacity-100">
+                              <CheckCircle2 className="h-3 w-3 text-white" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500">
+                        Haz clic en cualquier imagen para seleccionarla como imagen destacada del artículo.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </section>
             )}

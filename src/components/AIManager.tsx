@@ -5,6 +5,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { convertHtmlToDocument, prepareContentForDisplay } from '../lib/contentFormatting';
 import { markdownToHtml, cleanAIGeneratedContent } from '../lib/markdownUtils';
+import { manageFeaturedStatus } from '../lib/articleUtils';
 import toast from 'react-hot-toast';
 
 interface AIArticle {
@@ -400,6 +401,7 @@ Resultado esperado: Un artículo reescrito que refleja fielmente la información
             summary: '',
             image_caption: '',
             author: 'La Voz del Norte Diario', // Establecer autor
+            is_featured: true, // Marcar como destacado automáticamente
           }]);
 
         if (draftError) {
@@ -408,6 +410,10 @@ Resultado esperado: Un artículo reescrito que refleja fielmente la información
         } else {
           console.log('Borrador guardado exitosamente en la base de datos como artículo propio');
           toast.success('Artículo reescrito y guardado como borrador exitosamente.', { id: loadingToast });
+          
+          // Gestionar estado destacado
+          await manageFeaturedStatus();
+          
           await loadAiArticles();
         }
       } catch (draftErr) {
@@ -557,6 +563,7 @@ Resultado esperado: Un artículo reescrito que refleja fielmente la información
           image_caption: imageCaption || null,
           summary: summary || null,
           author: 'La Voz del Norte Diario',
+          is_featured: true, // Marcar como destacado automáticamente
           published_at: new Date().toISOString()
         }]);
 
@@ -564,6 +571,10 @@ Resultado esperado: Un artículo reescrito que refleja fielmente la información
 
       console.log('Artículo publicado exitosamente');
       toast.success('Artículo publicado exitosamente!', { id: loadingToast });
+      
+      // Gestionar estado destacado
+      await manageFeaturedStatus();
+      
       // Limpiar formulario
       setArticle('');
       setTitle('');
@@ -673,12 +684,17 @@ Resultado esperado: Un artículo reescrito que refleja fielmente la información
           image_caption: imageCaption || null,
           summary: summary || null,
           author: 'La Voz del Norte Diario',
+          is_featured: true, // Marcar como destacado automáticamente
         }]);
 
       if (error) throw error;
 
       console.log('Borrador manual guardado exitosamente');
       toast.success('Borrador guardado exitosamente!', { id: loadingToast });
+      
+      // Gestionar estado destacado
+      await manageFeaturedStatus();
+      
       await loadAiArticles();
     } catch (error) {
       console.error('Error guardando borrador:', error);

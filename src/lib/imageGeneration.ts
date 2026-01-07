@@ -1,17 +1,23 @@
 /*
  * Archivo: src/lib/imageGeneration.ts
- * Descripción: Funciones para generar imágenes usando diferentes proveedores de IA
+ * Descripción: Funciones para generar y buscar imágenes usando diferentes proveedores
  *
  * Proveedores soportados:
  * - Google Gemini (generación de imágenes)
  * - Banana (generación de imágenes)
  * - Pexels (búsqueda de imágenes)
+ * - Google Images (búsqueda de imágenes)
+ *
+ * Funciones principales:
+ * - generateImageWithProvider: Genera imagen con proveedor específico
+ * - generateArticleImage: Genera imagen usando modo automático
+ * - searchGoogleImages: Busca múltiples imágenes en Google Images
  */
 
 import { getRandomPexelsImage, generateImageQuery } from './pexels';
 import { enforceGoogleAIRateLimit } from './googleAI';
 
-export type ImageProvider = 'pexels' | 'gemini' | 'banana' | 'auto' | 'placeholder' | 'banana-force' | 'gemini-native';
+export type ImageProvider = 'pexels' | 'gemini' | 'banana' | 'auto' | 'placeholder' | 'banana-force' | 'gemini-native' | 'google-images';
 
 export interface GeneratedImageResult {
   url: string;
@@ -54,7 +60,7 @@ export async function generateImageWithProvider(
         return await generateImageWithProvider(title, description, category, 'auto', customPrompt);
 
       case 'auto':
-        // Intentar en orden: Gemini Native -> Gemini (búsqueda) -> Banana (si configurado correctamente) -> Pexels directo -> Placeholder
+        // Intentar en orden: Gemini Native -> Gemini (búsqueda) -> Banana (si configurado correctamente) -> Google Images -> Pexels directo -> Placeholder
         console.log('Intentando generación automática de imágenes...');
 
         // Intentar Gemini Native primero (tecnología más avanzada)
@@ -83,6 +89,13 @@ export async function generateImageWithProvider(
           return geminiResult;
         }
 
+        // Intentar Google Images Search
+        const googleImagesResult = await generateWithGoogleImages(title, description, category, customPrompt);
+        if (googleImagesResult) {
+          console.log('✅ Imagen obtenida de Google Images');
+          return googleImagesResult;
+        }
+
         const pexelsResult = await generateWithPexels(title, description, category, customPrompt);
         if (pexelsResult) {
           console.log('✅ Imagen obtenida de Pexels');
@@ -92,6 +105,9 @@ export async function generateImageWithProvider(
         // Si todo falla, devolver una imagen placeholder genérica
         console.log('⚠️ Todas las opciones fallaron, usando imagen placeholder');
         return getPlaceholderImage(category);
+
+      case 'google-images':
+        return await generateWithGoogleImages(title, description, category, customPrompt);
 
       default:
         throw new Error(`Proveedor de imágenes no soportado: ${provider}`);
@@ -355,4 +371,148 @@ function getPlaceholderImage(category: string): GeneratedImageResult {
     provider: 'placeholder',
     description: `Imagen placeholder para categoría: ${category}`
   };
+}
+
+/**
+ * Busca múltiples imágenes en Google Images y devuelve los resultados
+ */
+export async function searchGoogleImages(
+  query: string,
+  numResults: number = 5
+): Promise<{ url: string; title: string; thumbnail: string }[]> {
+  try {
+    const apiKey = import.meta.env.VITE_GOOGLE_SEARCH_API_KEY;
+    const searchEngineId = import.meta.env.VITE_GOOGLE_SEARCH_ENGINE_ID;
+
+    if (!apiKey || !searchEngineId || apiKey === 'your_google_search_api_key_here' || searchEngineId === 'your_google_search_engine_id_here') {
+      console.error('❌ Google Custom Search API no configurado:', {
+        hasApiKey: !!apiKey,
+        hasSearchEngineId: !!searchEngineId,
+        apiKeyValid: apiKey !== 'your_google_search_api_key_here',
+        searchEngineIdValid: searchEngineId !== 'your_google_search_engine_id_here'
+      });
+      throw new Error('Google Custom Search API no está configurado correctamente. Verifica VITE_GOOGLE_SEARCH_API_KEY y VITE_GOOGLE_SEARCH_ENGINE_ID');
+    }
+
+    console.log(`🔍 Buscando ${numResults} imágenes en Google con consulta:`, query);
+
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(query)}&searchType=image&num=${Math.min(numResults, 10)}&safe=active&lr=lang_es`;
+
+    console.log('🌐 URL de búsqueda:', url.replace(apiKey, '[API_KEY]'));
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      let errorMessage = `Error ${response.status}: ${response.statusText}`;
+
+      try {
+        const errorData = await response.json();
+        console.error('❌ Respuesta de error de Google:', errorData);
+
+        if (errorData.error) {
+          errorMessage += ` - ${errorData.error.message || 'Error desconocido'}`;
+
+          if (errorData.error.code === 400) {
+            errorMessage += '\n\nPosibles causas:\n';
+            errorMessage += '• El Custom Search Engine no está configurado para búsqueda de imágenes\n';
+            errorMessage += '• La API key no tiene permisos para Custom Search API\n';
+            errorMessage += '• El Search Engine ID es inválido\n';
+            errorMessage += '• Se excedió el límite diario de búsquedas (100 consultas gratis/día)';
+          }
+        }
+      } catch (parseError) {
+        console.error('❌ No se pudo parsear la respuesta de error:', parseError);
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    const data = await response.json();
+    console.log('✅ Respuesta de Google Images:', { itemsCount: data.items?.length || 0 });
+
+    if (!data.items || data.items.length === 0) {
+      console.log('⚠️ Google Images Search no encontró resultados para:', query);
+      return [];
+    }
+
+    const results = data.items.map((item: any) => ({
+      url: item.link,
+      title: item.title || 'Imagen sin título',
+      thumbnail: item.image?.thumbnailLink || item.link
+    }));
+
+    console.log(`✅ Se encontraron ${results.length} imágenes`);
+    return results;
+
+  } catch (error) {
+    console.error('❌ Error en búsqueda de imágenes de Google:', error);
+    throw error; // Re-throw para que el componente pueda manejar el error
+  }
+}
+
+/**
+ * Genera imagen usando Google Images Search API
+ */
+async function generateWithGoogleImages(
+  title: string,
+  description: string,
+  category: string,
+  customQuery?: string
+): Promise<GeneratedImageResult | null> {
+  try {
+    const apiKey = import.meta.env.VITE_GOOGLE_SEARCH_API_KEY;
+    const searchEngineId = import.meta.env.VITE_GOOGLE_SEARCH_ENGINE_ID;
+
+    if (!apiKey || !searchEngineId || apiKey === 'your_google_search_api_key_here' || searchEngineId === 'your_google_search_engine_id_here') {
+      console.log('⚠️ Google Custom Search API no configurado para imágenes');
+      return null;
+    }
+
+    // Crear consulta de búsqueda optimizada
+    const searchQuery = customQuery || generateImageQuery(title, category, description);
+    console.log('🔍 Buscando imágenes en Google con consulta:', searchQuery);
+
+    // Usar Google Custom Search API con searchType=image
+    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${searchEngineId}&q=${encodeURIComponent(searchQuery)}&searchType=image&num=10&safe=active&lr=lang_es`;
+
+    console.log('🔗 URL de búsqueda de imágenes:', url.replace(apiKey, '[API_KEY]'));
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        console.error('❌ Error 403 en Google Images Search: API key inválida o Custom Search API no habilitada');
+      } else if (response.status === 400) {
+        console.error('❌ Error 400 en Google Images Search: Parámetros inválidos');
+      } else if (response.status === 429) {
+        console.error('❌ Error 429 en Google Images Search: Límite de requests excedido');
+      } else {
+        console.error(`❌ Error ${response.status} en Google Images Search:`, response.statusText);
+      }
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (!data.items || data.items.length === 0) {
+      console.log('⚠️ Google Images Search no encontró resultados para esta consulta');
+      return null;
+    }
+
+    // Seleccionar una imagen aleatoria de los resultados
+    const randomIndex = Math.floor(Math.random() * Math.min(data.items.length, 5)); // Usar solo los primeros 5 resultados
+    const selectedImage = data.items[randomIndex];
+
+    console.log(`✅ Imagen encontrada en Google Images: ${selectedImage.title}`);
+
+    return {
+      url: selectedImage.link,
+      provider: 'google-images',
+      description: `Imagen de Google Images para: ${searchQuery}`
+    };
+
+  } catch (error) {
+    console.error('❌ Error en búsqueda de imágenes de Google:', error);
+    return null;
+  }
 }
