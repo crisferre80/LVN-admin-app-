@@ -1058,16 +1058,25 @@ export function AutomationManager() {
         );
 
         try {
-          const rewritePrompt = `Reescribe el siguiente artículo de noticias de manera profesional y atractiva, manteniendo la información esencial pero mejorando el lenguaje y la estructura. El artículo original es sobre: "${article.title}"
+          const rewritePrompt = `Actúa como un redactor jefe. Tu tarea es reescribir la siguiente noticia para un diario digital, basándote estrictamente en la información proporcionada.
 
-Resumen original: "${article.description || ''}"
+**Fuente de Información:**
+*   **Título Original:** "${article.title}"
+*   **Resumen/Contenido Original:** "${article.content || article.description}"
 
-Contenido completo: "${article.content || article.description}"
+**Instrucciones Precisas:**
+1.  **No Inventar:** No agregues información, datos, ni nombres que no estén en la fuente original.
+2.  **Tono Periodístico:** Usa un lenguaje formal, objetivo y claro.
+3.  **Estructura Lógica:** Organiza la información en párrafos coherentes.
 
-Por favor, genera:
-1. Un título más atractivo y SEO-friendly
-2. Un artículo reescrito completo con buena estructura, párrafos coherentes y lenguaje periodístico profesional
-3. Mantén la objetividad y precisión de la información original`;
+**Formato de Salida OBLIGATORIO (en Markdown):**
+Debes generar el siguiente contenido:
+
+# [Crea aquí un título nuevo, atractivo y optimizado para SEO]
+
+**[Escribe aquí un resumen o volanta de 1 o 2 frases]**
+
+[Comienza aquí a escribir el cuerpo completo del artículo, desarrollado en varios párrafos, manteniendo la fidelidad a los datos originales.]`;
 
           // Usar el modelo configurado o el sistema de fallback
           const { cleanAIGeneratedContent, markdownToHtml } = await import('../lib/markdownUtils');

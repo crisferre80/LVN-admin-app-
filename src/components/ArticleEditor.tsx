@@ -542,48 +542,39 @@ export function ArticleEditor({ onExit, initialEditId, initialNew, initialRewrit
     setGenerating(true);
 
     try {
-      // INVESTIGACIÓN WEB: Obtener información actualizada del tema usando la imagen como fuente
-      let researchData = '';
-      const searchTopic = formData.title.trim() || 'tema general';
-      toast('🔍 Investigando fuentes originales para reescritura...', { icon: '🔍' });
-      
-      try {
-        researchData = await searchWebForTopic(searchTopic, formData.description, formData.image_url);
-        if (researchData) {
-          console.log('✅ Información de investigación obtenida para reescritura:', researchData.length, 'caracteres');
-          toast.success('Información verificada obtenida de fuentes confiables');
-        } else {
-          console.warn('⚠️ No se obtuvo información de investigación para reescritura');
-          toast('No se encontró información específica, reescribiendo con conocimientos generales', { icon: '⚠️' });
-        }
-      } catch (error) {
-        console.error('Error en investigación web para reescritura:', error);
-        toast('Error en investigación web, continuando con conocimientos generales', { icon: '⚠️' });
+      // Prioritize existing content for rewriting.
+      const contentToRewrite = formData.content.replace(/<[^>]*>/g, '').trim();
+      if (!contentToRewrite) {
+        toast.error('No hay contenido para reescribir.');
+        setGenerating(false);
+        return;
       }
 
+      toast('🤖 Reescribiendo el contenido con IA...', { icon: '✍️' });
+      
       let rewrittenContent = '';
       let provider = '';
-      const openrouterApiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
       
-      // Crear prompt para reescritura con información de investigación
-      let rewritePrompt = `Reescribe el siguiente artículo mejorando su calidad, claridad y estilo periodístico. Mantén el mismo tema y enfoque principal.
+      // Prompt for rewriting based on existing content.
+      const rewritePrompt = `Eres un periodista experto de "La Voz del Norte", un diario regional argentino. Tu tarea es reescribir y mejorar el siguiente artículo.
 
-Título: ${formData.title}
-Categoría: ${formData.category}
+**Reglas Estrictas:**
+1.  **Base Sólida:** Basa tu reescritura **única y exclusivamente** en los datos y hechos del "Contenido Original". No inventes, no añadas y no supongas información que no esté presente.
+2.  **Mejora, no Inventes:** Enriquece el estilo, la claridad y la estructura periodística. Mejora la redacción, pero no alteres los hechos.
+3.  **Datos Intactos:** Mantén todos los datos específicos (nombres, lugares, fechas, cifras, etc.) exactamente como están en el original.
+4.  **Formato Profesional:** Devuelve solo el artículo reescrito en formato Markdown.
 
-Contenido original:
-${formData.content.replace(/<[^>]*>/g, '')}
+**Título Original:** ${formData.title}
+**Categoría:** ${formData.category}
 
-Reescribe el artículo de forma profesional y atractiva.`;
+**Contenido Original:**
+${contentToRewrite}
 
-      // Agregar información de investigación si está disponible
-      if (researchData) {
-        rewritePrompt += `\n\n${researchData}\n\nIMPORTANTE: Usa la información verificada de arriba como base para la reescritura, especialmente si proviene de la fuente original del artículo.`;
-      }
+**Instrucción Final:** Reescribe el artículo ahora, siguiendo todas las reglas.`;
       
-      // Usar el orden de fallback configurado
+      // Use the configured fallback order.
       for (const providerName of aiConfig.fallbackOrder) {
-        if (rewrittenContent) break; // Si ya tenemos contenido, salir
+        if (rewrittenContent) break;
 
         switch (providerName) {
           case 'google':
@@ -592,20 +583,13 @@ Reescribe el artículo de forma profesional y atractiva.`;
               provider = 'Google AI';
             } catch (error: any) {
               console.warn('Google AI failed for rewrite:', error?.message);
-              if (error?.message?.includes('quota') || error?.message?.includes('429') || error?.message?.includes('Too Many Requests')) {
-                console.warn('⚠️ Cuota de Google AI excedida para reescritura');
-              }
             }
             break;
 
           case 'openrouter':
-            if (openrouterApiKey) {
+            if (import.meta.env.VITE_OPENROUTER_API_KEY) {
               try {
-                const result = await rewriteWithOpenRouter(
-                  formData.content.replace(/<[^>]*>/g, ''),
-                  formData.title,
-                  formData.category
-                );
+                const result = await rewriteWithOpenRouter(contentToRewrite, formData.title, formData.category);
                 if (result) {
                   rewrittenContent = result;
                   provider = 'OpenRouter';
@@ -619,11 +603,7 @@ Reescribe el artículo de forma profesional y atractiva.`;
           case 'openai':
             if (import.meta.env.VITE_OPENAI_API_KEY) {
               try {
-                const result = await rewriteWithOpenAI(
-                  formData.content.replace(/<[^>]*>/g, ''),
-                  formData.title,
-                  formData.category
-                );
+                const result = await rewriteWithOpenAI(contentToRewrite, formData.title, formData.category);
                 if (result) {
                   rewrittenContent = result;
                   provider = 'OpenAI';
@@ -635,14 +615,9 @@ Reescribe el artículo de forma profesional y atractiva.`;
             break;
 
           case 'puter':
-            if (import.meta.env.VITE_PUTER_API_KEY) {
+             if (import.meta.env.VITE_PUTER_API_KEY) {
               try {
-                const result = await rewriteWithPuter(
-                  formData.content.replace(/<[^>]*>/g, ''),
-                  formData.title,
-                  formData.category,
-                  selectedStyle
-                );
+                const result = await rewriteWithPuter(contentToRewrite, formData.title, formData.category, selectedStyle);
                 if (result) {
                   rewrittenContent = result;
                   provider = 'Puter AI';
@@ -656,25 +631,22 @@ Reescribe el artículo de forma profesional y atractiva.`;
       }
 
       if (!rewrittenContent) {
-        toast.error('No se pudo reescribir el contenido. Verifica tus API keys.');
+        toast.error('No se pudo reescribir el contenido. Todos los proveedores fallaron.');
         return;
       }
 
-      // Extraer título del contenido generado (línea que comienza con **)
+      // Extract title from the generated content (line starting with **)
       let extractedTitle = formData.title;
       let cleanedContent = rewrittenContent;
 
       const titleMatch = rewrittenContent.match(/^\*\*(.+?)\*\*/m);
       if (titleMatch && titleMatch[1].trim().length > 5) {
         extractedTitle = titleMatch[1].trim();
-        // Remover la línea del título del contenido
         cleanedContent = rewrittenContent.replace(/^\*\*(.+?)\*\*\s*/, '');
       }
 
-      // Convertir el contenido limpio (sin título) a HTML
       const htmlContent = markdownToHtml(cleanedContent);
 
-      // Guardar estado anterior para undo
       setPreviousFormData(formData);
       setCanUndo(true);
 
@@ -687,7 +659,7 @@ Reescribe el artículo de forma profesional y atractiva.`;
       toast.success(`¡Contenido reescrito con ${provider}!`);
     } catch (error) {
       console.error('Error rewriting content:', error);
-      toast.error('Error al reescribir el contenido');
+      toast.error('Error al reescribir el contenido.');
     } finally {
       setGenerating(false);
       setIsManualGeneration(false);
@@ -778,150 +750,114 @@ Reescribe el artículo de forma profesional y atractiva.`;
   };
 
   const generateContentWithAI = async () => {
-    // Validaciones: necesitamos tema o prompt personalizado o contenido existente
-    if (!customTopic.trim() && !customPrompt.trim() && !formData.content?.trim()) {
-      toast.error('Ingresa un tema, un prompt personalizado o asegúrate de que haya contenido existente');
+    const contentFromEditor = formData.content.replace(/<[^>]*>/g, '').trim();
+    const hasContentInEditor = contentFromEditor.length > 50; // Consider content significant if > 50 chars
+
+    // Validations: we need a topic, a custom prompt, or existing content
+    if (!customTopic.trim() && !useCustomPrompt && !hasContentInEditor) {
+      toast.error('Ingresa un tema, un prompt personalizado o escribe contenido en el editor.');
       return;
     }
 
-    // Marcar como generación manual solicitada por el usuario
     setIsManualGeneration(true);
     console.log('🤖 [MANUAL] Usuario solicitó generación de contenido completo con IA');
-    console.log('📋 Parámetros:', { 
-      useCustomPrompt, 
-      useWebResearch, 
-      customTopic: customTopic.trim(),
-      selectedProvider,
-      selectedStyle 
-    });
     setGenerating(true);
 
     try {
       let researchData = '';
-      
-      // SIEMPRE investigar en la web para obtener información factual (como ChatGPT)
-      const searchTopic = customTopic.trim() || formData.title || 'tema general';
-      toast('🔍 Investigando en la web para obtener información factual...', { icon: '🔍' });
-      try {
-        researchData = await searchWebForTopic(searchTopic);
-        if (researchData) {
-          console.log('✅ Información de investigación obtenida:', researchData.length, 'caracteres');
-          toast.success('Información verificada obtenida de fuentes confiables');
-        } else {
-          console.warn('⚠️ No se obtuvo información de investigación web');
-          toast('No se encontró información específica, generando con conocimientos generales', { icon: '⚠️' });
+      const topic = customTopic.trim() || formData.title || 'un tema general';
+
+      // Use web research ONLY if there is NO significant content in the editor.
+      if (useWebResearch && !hasContentInEditor) {
+        toast('🔍 Investigando en la web para obtener información factual...', { icon: '🔍' });
+        try {
+          researchData = await searchWebForTopic(topic);
+          if (researchData) {
+            console.log('✅ Información de investigación obtenida:', researchData.length, 'caracteres');
+            toast.success('Información verificada obtenida de fuentes confiables');
+          } else {
+            console.warn('⚠️ No se obtuvo información de investigación web');
+            toast('No se encontró información específica, generando con conocimientos generales', { icon: '⚠️' });
+          }
+        } catch (error) {
+          console.error('Error en investigación web:', error);
+          toast('Error en investigación web, continuando con conocimientos generales', { icon: '⚠️' });
         }
-      } catch (error) {
-        console.error('Error en investigación web:', error);
-        toast('Error en investigación web, continuando con conocimientos generales', { icon: '⚠️' });
+      } else if (hasContentInEditor) {
+        console.log('📝 Usando el contenido del editor como fuente principal. Se omitirá la búsqueda web.');
+        toast.success('Usando el contenido del editor como fuente principal.');
       }
 
       const selectedPrompt = JOURNALISTIC_PROMPTS[selectedStyle];
-      if (!selectedPrompt) {
-        toast.error('Estilo periodístico no encontrado');
-        return;
+      let generationPrompt: string;
+      let systemPromptForAI = 'Eres un periodista profesional experto. Genera contenido de alta calidad basado ÚNICAMENTE en hechos verificables. NO inventes información.';
+
+      if (useCustomPrompt && customPrompt.trim()) {
+        generationPrompt = `INSTRUCCIONES DEL USUARIO:\n${customPrompt.trim()}\n\n`;
+        generationPrompt += `TEMA PRINCIPAL: ${topic}\n`;
+        if (hasContentInEditor) {
+          generationPrompt += `CONTEXTO PRINCIPAL (Contenido del editor):\n${contentFromEditor}\n\n`;
+          generationPrompt += `REGLA: Basa tu respuesta en el "CONTEXTO PRINCIPAL".\n`;
+        }
+        if (researchData) {
+          generationPrompt += `INFORMACIÓN ADICIONAL DE FUENTES EXTERNAS:\n${researchData}\n\n`;
+          generationPrompt += `REGLA: Puedes usar la "INFORMACIÓN ADICIONAL" para complementar, pero el "CONTEXTO PRINCIPAL" tiene prioridad.\n`;
+        }
+        generationPrompt += `Genera el artículo ahora:`;
+      } else {
+        systemPromptForAI = selectedPrompt.systemPrompt + ' CRÍTICO: Usa ÚNICAMENTE información verificable del contexto proporcionado. NO inventes datos.';
+        generationPrompt = `TEMA DEL ARTÍCULO: ${topic}\n`;
+        generationPrompt += `ESTILO REQUERIDO: ${selectedPrompt.name}\n\n`;
+
+        if (hasContentInEditor) {
+          generationPrompt += `CONTENIDO DE BASE (Fuente de verdad principal):\n${contentFromEditor}\n\n`;
+          generationPrompt += `INSTRUCCIÓN CLAVE: Tu tarea es expandir, mejorar y completar el "CONTENIDO DE BASE" para crear un artículo completo. **Todos los hechos y datos deben provenir del contenido de base.** No inventes información.\n\n`;
+        }
+        
+        if (researchData) {
+          generationPrompt += `INFORMACIÓN ADICIONAL DE INVESTIGACIÓN WEB:\n${researchData}\n\n`;
+          generationPrompt += `Puedes usar esta información para enriquecer el artículo, pero el "CONTENIDO DE BASE" es la fuente principal.\n\n`;
+        }
+
+        generationPrompt += `INSTRUCCIONES:\n`;
+        generationPrompt += `- Escribe un artículo periodístico completo sobre "${topic}"\n`;
+        generationPrompt += `- Longitud: ${selectedPrompt.minWords}-${selectedPrompt.maxWords} palabras\n`;
+        generationPrompt += `- Estilo: ${selectedPrompt.description}\n`;
+        generationPrompt += `- ${hasContentInEditor ? 'Expande y mejora el contenido de base sin alterar los hechos.' : 'Desarrolla el tema con información general verificable.'}\n`;
+        generationPrompt += `Genera el artículo ahora:`;
       }
+
+      console.log('📝 Prompt para generación:', {
+        promptLength: generationPrompt.length,
+        hasEditorContent: hasContentInEditor,
+        hasWebResearch: !!researchData,
+      });
+      console.log('📄 Prompt completo:\n', generationPrompt);
 
       let generatedContent = '';
       let provider = '';
 
-      // Determinar el tema base
-      const baseTopic = customTopic.trim() || formData.title || 'Artículo sin título';
-
-      // Crear prompt: si hay custom prompt, usarlo; sino usar el estándar
-      let generationPrompt: string;
-      let systemPromptForAI = '';
-      
-      if (useCustomPrompt && customPrompt.trim()) {
-        // Usar prompt personalizado - más limpio y directo
-        systemPromptForAI = 'Eres un periodista profesional experto. Genera contenido de alta calidad basado ÚNICAMENTE en hechos verificables. NO inventes información, nombres o eventos que no estén en los datos proporcionados.';
-        
-        generationPrompt = `INSTRUCCIONES DEL USUARIO:\n${customPrompt.trim()}\n\n`;
-        generationPrompt += `TEMA PRINCIPAL: ${baseTopic}\n`;
-        generationPrompt += `CATEGORÍA: ${formData.category}\n\n`;
-        
-        if (researchData) {
-          generationPrompt += `INFORMACIÓN VERIFICABLE DE FUENTES CONFIABLES (USA ÚNICAMENTE ESTA INFORMACIÓN):\n${researchData}\n\n`;
-          generationPrompt += `REGLAS CRÍTICAS: NO inventes nombres, personas, fechas, eventos o datos que no estén explícitamente en la información proporcionada. Si necesitas datos específicos que no están disponibles, indica claramente que no hay información suficiente sobre ese aspecto.\n\n`;
-        }
-        
-        generationPrompt += `IMPORTANTE: Si no hay información de referencia verificada, genera contenido genérico basado en conocimientos generales, pero evita cualquier detalle específico inventado.\n\n`;
-        generationPrompt += `Genera el artículo ahora:`;
-        
-      } else {
-        // Usar prompt estándar con el estilo seleccionado - simplificado
-        systemPromptForAI = selectedPrompt.systemPrompt + ' CRÍTICO: Usa ÚNICAMENTE información verificable del contexto proporcionado. NO inventes nombres, personas, eventos, fechas o datos específicos. Si no hay información suficiente, genera contenido genérico pero factual.';
-        
-        generationPrompt = `TEMA DEL ARTÍCULO: ${baseTopic}\n`;
-        generationPrompt += `CATEGORÍA: ${formData.category}\n`;
-        generationPrompt += `ESTILO REQUERIDO: ${selectedPrompt.name}\n\n`;
-        
-        if (researchData) {
-          generationPrompt += `INFORMACIÓN VERIFICABLE DE FUENTES CONFIABLES (USA ÚNICAMENTE ESTA INFORMACIÓN):\n${researchData}\n\n`;
-          generationPrompt += `REGLAS ESTRICTAS - NO VIOLACIÓN PERMITIDA:\n`;
-          generationPrompt += `- NO inventes nombres de personas, lugares específicos, fechas o eventos\n`;
-          generationPrompt += `- NO agregues información que no esté explícitamente en las fuentes\n`;
-          generationPrompt += `- Si necesitas datos específicos que no están disponibles, usa ejemplos genéricos o indica "sin información específica disponible"\n`;
-          generationPrompt += `- Mantén toda la información basada en hechos verificables de las fuentes proporcionadas\n\n`;
-        } else {
-          generationPrompt += `NOTA: No hay información específica verificada disponible. Genera contenido basado en conocimientos generales del tema, pero evita cualquier detalle específico inventado.\n\n`;
-        }
-        
-        // Solo incluir contenido existente si realmente existe y es significativo
-        if (formData.content && formData.content.replace(/<[^>]*>/g, '').trim().length > 100) {
-          generationPrompt += `NOTA: Hay contenido previo que puedes usar como base si es relevante, pero concéntrate en desarrollar el tema "${baseTopic}" de forma completa.\n\n`;
-        }
-        
-        // Instrucciones claras y concisas
-        generationPrompt += `INSTRUCCIONES:\n`;
-        generationPrompt += `- Escribe un artículo periodístico completo sobre "${baseTopic}"\n`;
-        generationPrompt += `- Longitud: ${selectedPrompt.minWords}-${selectedPrompt.maxWords} palabras\n`;
-        generationPrompt += `- Estilo: ${selectedPrompt.description}\n`;
-        generationPrompt += `- ${researchData ? 'Incorpora ÚNICAMENTE datos verificados de las fuentes proporcionadas, sin invenciones ni especulaciones' : 'Desarrolla el tema con información general verificable, sin detalles específicos inventados'}\n`;
-        generationPrompt += `- Si no tienes información específica sobre un aspecto, dilo explícitamente\n`;
-        generationPrompt += `- Mantén el foco en el tema principal en todo momento\n`;
-        generationPrompt += `- Usa un formato estructurado con párrafos bien organizados\n\n`;
-        generationPrompt += `Genera el artículo ahora:`;
-      }
-
-      // Log del prompt para debugging
-      console.log('📝 Prompt generado:', {
-        systemPrompt: systemPromptForAI.substring(0, 100) + '...',
-        promptLength: generationPrompt.length,
-        hasResearch: !!researchData,
-        researchLength: researchData.length
-      });
-      console.log('📄 Prompt completo:\n', generationPrompt);
-
-      // Usar el proveedor seleccionado por el usuario
+      // Use the selected provider
       switch (selectedProvider) {
         case 'google':
           try {
             generatedContent = await generateContentWithGeminiRetry(generationPrompt);
             provider = 'Google AI';
           } catch (error: any) {
-            console.warn('Google AI failed for content generation:', error?.message);
-            if (error?.message?.includes('quota') || error?.message?.includes('429') || error?.message?.includes('Too Many Requests')) {
-              console.warn('⚠️ Cuota de Google AI excedida para generación de contenido');
-              toast.error('⚠️ Cuota de Google AI excedida. Selecciona otro proveedor o espera a que se restablezca.');
-            } else {
-              toast.error(`Error con Google AI: ${error?.message || 'Error desconocido'}`);
-            }
+            console.warn('Google AI failed:', error?.message);
+            toast.error(`Error con Google AI: ${error?.message || 'Error desconocido'}`);
           }
           break;
 
         case 'openrouter':
           try {
-            const result = await generateContentWithOpenRouter(
-              baseTopic,
-              selectedPrompt
-            );
+            const result = await generateContentWithOpenRouter(topic, selectedPrompt);
             if (result) {
               generatedContent = result;
               provider = 'OpenRouter';
             }
           } catch (error: any) {
-            console.warn('OpenRouter failed for content generation:', error);
+            console.warn('OpenRouter failed:', error);
             toast.error(`Error con OpenRouter: ${error?.message || 'Error desconocido'}`);
           }
           break;
@@ -929,17 +865,17 @@ Reescribe el artículo de forma profesional y atractiva.`;
         case 'openai':
           try {
             const result = await generateWithOpenAIEdge(generationPrompt, {
-              model: 'gpt-4o', // Modelo más avanzado para mejor fiabilidad y consistencia
+              model: 'gpt-4o',
               systemPrompt: systemPromptForAI,
-              temperature: 0, // Temperatura reducida para resultados más deterministas y precisos
-              maxTokens: Math.min(selectedPrompt.maxWords * 5, 16000) // Más tokens para respuestas completas
+              temperature: 0,
+              maxTokens: Math.min(selectedPrompt.maxWords * 5, 16000)
             });
             if (result) {
               generatedContent = result;
-              provider = 'OpenAI (Edge Function)';
+              provider = 'OpenAI (Edge)';
             }
           } catch (error: any) {
-            console.warn('OpenAI Edge Function failed for content generation:', error);
+            console.warn('OpenAI Edge failed:', error);
             toast.error(`Error con OpenAI: ${error?.message || 'Error desconocido'}`);
           }
           break;
@@ -947,22 +883,17 @@ Reescribe el artículo de forma profesional y atractiva.`;
         case 'puter':
           if (import.meta.env.VITE_PUTER_API_KEY) {
             try {
-              const result = await generateContentWithPuter(
-                baseTopic,
-                formData.description || '',
-                formData.category,
-                selectedStyle
-              );
+              const result = await generateContentWithPuter(topic, formData.description || '', formData.category, selectedStyle);
               if (result) {
                 generatedContent = result;
                 provider = 'Puter AI';
               }
             } catch (error: any) {
-              console.warn('Puter AI failed for content generation:', error);
+              console.warn('Puter AI failed:', error);
               toast.error(`Error con Puter AI: ${error?.message || 'Error desconocido'}`);
             }
           } else {
-            toast.error('API key de Puter no configurada. Ve a Configuración > Modelos de IA para configurarla.');
+            toast.error('API key de Puter no configurada.');
           }
           break;
 
@@ -971,71 +902,43 @@ Reescribe el artículo de forma profesional y atractiva.`;
       }
 
       if (!generatedContent) {
-        toast.error(`No se pudo generar el contenido con ${selectedProvider}. Verifica la configuración y cuota del proveedor seleccionado.`);
+        toast.error(`No se pudo generar el contenido con ${selectedProvider}.`);
         return;
       }
 
-      // Convertir el contenido generado a HTML
-      // const htmlContent = markdownToHtml(generatedContent);
-
-      // Generar título si no hay uno
       let title = formData.title;
       if (!title.trim()) {
-        // Extraer título del contenido generado (línea que comienza con **)
         const titleMatch = generatedContent.match(/^\*\*(.+?)\*\*/m);
         if (titleMatch && titleMatch[1].trim().length > 5) {
           title = titleMatch[1].trim();
         } else {
-          // Fallback: usar el título del artículo RSS original o el tema personalizado
-          title = formData.title || customTopic.charAt(0).toUpperCase() + customTopic.slice(1);
+          title = topic.charAt(0).toUpperCase() + topic.slice(1);
         }
       }
 
-      // Generar descripción si no hay una
       let description = formData.description;
       if (!description.trim()) {
-        // Extraer descripción del contenido generado (línea que comienza con *)
         const descriptionMatch = generatedContent.match(/^\*(.+?)\*/m);
         if (descriptionMatch && descriptionMatch[1].trim().length > 10) {
-          description = descriptionMatch[1].trim();
-          // Limitar a 300 caracteres
-          if (description.length > 300) {
-            description = description.substring(0, 297) + '...';
-          }
+          description = descriptionMatch[1].trim().substring(0, 300);
         } else {
-          // Fallback: extraer la primera línea significativa
           const firstLine = generatedContent.split('\n').find(line => line.trim() && !line.startsWith('#') && !line.startsWith('*'));
           if (firstLine) {
-            description = firstLine.replace(/[*_`]/g, '').trim();
-            // Limitar a 300 caracteres
-            if (description.length > 300) {
-              description = description.substring(0, 297) + '...';
-            }
+            description = firstLine.replace(/[*_`]/g, '').trim().substring(0, 300);
           }
         }
       }
 
-      // Limpiar el contenido generado removiendo título y descripción antes de convertir a HTML
       let cleanedContent = generatedContent;
       if (title && !formData.title.trim()) {
-        // Remover la línea del título si fue extraída del contenido
-        const titleMatch = cleanedContent.match(/^\*\*(.+?)\*\*\s*/m);
-        if (titleMatch) {
-          cleanedContent = cleanedContent.replace(/^\*\*(.+?)\*\*\s*/, '');
-        }
+        cleanedContent = cleanedContent.replace(/^\*\*(.+?)\*\*\s*/, '');
       }
       if (description && !formData.description.trim()) {
-        // Remover la línea de la descripción si fue extraída del contenido
-        const descriptionMatch = cleanedContent.match(/^\*(.+?)\*\s*/m);
-        if (descriptionMatch) {
-          cleanedContent = cleanedContent.replace(/^\*(.+?)\*\s*/, '');
-        }
+        cleanedContent = cleanedContent.replace(/^\*(.+?)\*\s*/, '');
       }
 
-      // Convertir el contenido limpio a HTML
       const finalHtmlContent = markdownToHtml(cleanedContent);
 
-      // Guardar estado anterior para undo
       setPreviousFormData(formData);
       setCanUndo(true);
 
@@ -1046,9 +949,7 @@ Reescribe el artículo de forma profesional y atractiva.`;
         content: finalHtmlContent
       }));
 
-      // Cerrar el selector de estilos
       setShowStyleSelector(false);
-
       toast.success(`¡Artículo generado con ${provider}!`);
     } catch (error) {
       console.error('Error generating content:', error);

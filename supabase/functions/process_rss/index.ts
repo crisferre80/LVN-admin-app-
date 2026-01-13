@@ -415,6 +415,14 @@ Deno.serve(async (req) => {
       console.log(`URL: ${rssSource.url}`)
       console.log(`Category: ${rssSource.category}`)
 
+      // Skip if processed recently (within last 2 hours) to reduce egress
+      const lastUpdated = new Date(rssSource.updated_at || '1970-01-01')
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+      if (lastUpdated > twoHoursAgo) {
+        console.log(`Skipping ${rssSource.id} - processed recently at ${lastUpdated.toISOString()}`)
+        continue
+      }
+
       try {
         // Fetch RSS feed with retry
         const response = await fetchWithRetry(rssSource.url, {
@@ -439,35 +447,21 @@ Deno.serve(async (req) => {
         totalArticlesProcessed += articles.length
 
         if (articles.length > 0) {
-          // STEP 1: Delete existing articles for this source
-          console.log(`Deleting existing articles for RSS source ${rssSource.id}`)
-          const { error: deleteError } = await supabase
+          // STEP 1: Upsert new articles (update existing, insert new)
+          console.log(`Upserting ${articles.length} articles for ${rssSource.url}`)
+          const { error: upsertError } = await supabase
             .from('articles')
-            .delete()
-            .eq('rss_source_id', rssSource.id)
+            .upsert(articles, { onConflict: 'url' })
 
-          if (deleteError) {
-            console.error(`Failed to delete articles for ${rssSource.id}:`, deleteError)
-            continue // Skip insertion if delete failed
-          }
-
-          console.log(`Successfully deleted existing articles for RSS source ${rssSource.id}`)
-
-          // STEP 2: Insert new articles (replacing the old ones)
-          console.log(`Inserting ${articles.length} new articles for ${rssSource.url}`)
-          const { error: insertError } = await supabase
-            .from('articles')
-            .insert(articles)
-
-          if (insertError) {
-            console.error(`Failed to insert articles for ${rssSource.url}:`, insertError)
+          if (upsertError) {
+            console.error(`Failed to upsert articles for ${rssSource.url}:`, upsertError)
           } else {
-            console.log(`✅ Successfully replaced articles for ${rssSource.url} with ${articles.length} new articles`)
+            console.log(`✅ Successfully upserted articles for ${rssSource.url}`)
             totalArticlesInserted += articles.length
             sourcesProcessed++
           }
         } else {
-          console.log(`No articles found for ${rssSource.url}, skipping replacement`)
+          console.log(`No articles found for ${rssSource.url}, skipping upsert`)
           sourcesProcessed++
         }
 
@@ -563,8 +557,8 @@ async function parseRSS(rssText: string, rssSourceId: string, category: string):
 
   const articles: Article[] = []
 
-  for (let index = 0; index < items.length && index < 200; index++) {
-    const item = items[index] // Limit to 200 articles per source
+  for (let index = 0; index < items.length && index < 50; index++) {
+    const item = items[index] // Limit to 50 articles per source
     const title = item.title
     const description = item.description || item['content:encoded']
     let link = item.link
@@ -659,7 +653,7 @@ async function scrapeWebsite(rssSource: {
     const articleData: Array<{title: string, description: string, link: string, dateText: string, imageUrl?: string, content: string}> = []
 
     $(rssSource.scrape_selector).each((index: number, element: CheerioElement) => {
-      if (index >= 200) return false // Limit to 200 articles
+      if (index >= 50) return false // Limit to 50 articles
 
       const $el = $(element)
 

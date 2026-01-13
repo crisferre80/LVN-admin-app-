@@ -263,24 +263,27 @@ export const AIManager: React.FC = () => {
         lengthInstruction = 'El contenido original es limitado, genera un artículo más breve y conciso, enfocándote únicamente en los hechos verificables disponibles sin agregar especulaciones o información no presente en el original.';
       }
 
-      const rewritePrompt = `Reescribe el siguiente artículo de noticias de manera profesional y atractiva, basándote ÚNICAMENTE en los datos reales y hechos verificables proporcionados. NO agregues información especulativa, opiniones o datos no presentes en el contenido original.
+      const rewritePrompt = `Actúa como un periodista digital experto. Tu tarea es reescribir el siguiente artículo de noticias para un medio online.
 
-El artículo original es sobre: "${selectedRssArticle.title}"
+**Instrucciones Clave:**
+1.  **Título Atractivo y SEO:** Crea un título nuevo que sea informativo, atractivo para los lectores y optimizado para motores de búsqueda.
+2.  **Contenido Fiel y Mejorado:** Basa tu redacción estrictamente en la información de la **URL de la fuente original**. El resumen y el contenido parcial son solo un apoyo. No inventes datos ni especules.
+3.  **Estructura Profesional:** Escribe con un estilo periodístico claro y directo. Usa párrafos cortos y coherentes.
+4.  **Tono Objetivo:** Mantén siempre un tono neutral e informativo.
 
-Resumen original: "${selectedRssArticle.description}"
+**Fuente de Información Principal:**
+*   **URL Original (Prioridad Alta):** ${selectedRssArticle.url}
 
-Contenido completo: "${selectedRssArticle.content}"
+**Datos de Apoyo:**
+*   **Título Original:** "${selectedRssArticle.title}"
+*   **Resumen Original:** "${selectedRssArticle.description}"
+*   **Contenido Parcial (si existe):** "${selectedRssArticle.content}"
 
-${lengthInstruction}
+**Instrucción de Longitud:**
+*   ${lengthInstruction}
 
-Instrucciones específicas:
-1. **Base factual estricta**: Utiliza únicamente la información presente en el contenido original. Si algo no está mencionado, no lo incluyas.
-2. **Objetividad total**: Mantén un tono neutral y periodístico, sin interpretaciones personales.
-3. **Estructura periodística**: Organiza el contenido de manera lógica y atractiva.
-4. **Lenguaje profesional**: Mejora el estilo de redacción sin alterar los hechos.
-5. Genera un título más atractivo y SEO-friendly basado en el contenido real.
-
-Resultado esperado: Un artículo reescrito que refleja fielmente la información original, con longitud apropiada según la cantidad de datos disponibles.`;
+**Formato de Salida Esperado:**
+El resultado debe ser un artículo de noticias completo, comenzando con el nuevo título que creaste.`;
 
       setPromptUsed(rewritePrompt);
 
